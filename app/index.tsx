@@ -19,7 +19,7 @@ export default function LoginScreen() {
 
   const fetchAgencies = async () => {
     try {
-      console.log('Fetching agencies from:', 'http://192.168.31.47:8000/api/auth/agencies');
+
       const data = await authAPI.getAgencies();
       console.log('Agencies fetched:', data);
       setAgencies(data);
@@ -37,7 +37,7 @@ export default function LoginScreen() {
       console.log('Using mock agency for testing');
       setAgencies([{ id: '1', agency_name: 'Test Agency' }]);
       setSelectedAgency({ id: '1', agency_name: 'Test Agency' });
-      Alert.alert('Connection Warning', 'Using test mode - backend unreachable. Please ensure your phone and computer are on the same WiFi network and Windows Firewall allows port 8000.');
+
     }
   };
 
@@ -58,11 +58,11 @@ export default function LoginScreen() {
         password: password,
         agency_id: selectedAgency.id,
       });
-      
+
       if (response && response.access_token) {
         // Initialize token globally
         setAuthToken(response.access_token);
-        
+
         // Store user in session (explicitly adding selected agency_id since backend UserResponse lacks it)
         session.user = {
           ...response.user,
@@ -74,7 +74,7 @@ export default function LoginScreen() {
           initializePushNotifications(session.user.id);
           setupNotificationListeners();
         }
-        
+
         Alert.alert('Success', 'Login successful');
         router.replace('/dashboard'); // Navigate to tabs
       } else {
@@ -99,8 +99,8 @@ export default function LoginScreen() {
 
       {/* Agency Dropdown */}
       <Text style={styles.label}>Agency *</Text>
-      <TouchableOpacity 
-        style={styles.inputContainer} 
+      <TouchableOpacity
+        style={styles.inputContainer}
         onPress={() => setShowDropdown(true)}
       >
         <FontAwesome5 name="building" size={16} color="#64748b" style={styles.inputIcon} />
@@ -122,7 +122,7 @@ export default function LoginScreen() {
           autoCapitalize="none"
         />
       </View>
-      
+
       <Text style={styles.label}>Password *</Text>
       <View style={styles.inputContainer}>
         <FontAwesome5 name="lock" size={16} color="#64748b" style={styles.inputIcon} />
@@ -173,9 +173,9 @@ export default function LoginScreen() {
 }
 const styles = StyleSheet.create({
   container: {
-    flex: 1, 
-    justifyContent: 'center', 
-    padding: 24, 
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
     backgroundColor: '#0b0f19'
   },
   logoContainer: {
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   button: {
-    backgroundColor: '#6366f1', 
+    backgroundColor: '#6366f1',
     height: 56,
     borderRadius: 14,
     justifyContent: 'center',
@@ -258,14 +258,14 @@ const styles = StyleSheet.create({
     elevation: 5
   },
   buttonText: {
-    color: '#fff', 
-    fontWeight: '800', 
+    color: '#fff',
+    fontWeight: '800',
     fontSize: 18,
     letterSpacing: 0.5,
   },
   footer: {
-    textAlign: 'center', 
-    marginTop: 40, 
+    textAlign: 'center',
+    marginTop: 40,
     color: '#64748b',
     fontSize: 12,
   },
