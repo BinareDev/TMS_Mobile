@@ -9,6 +9,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 import uuid
+import bcrypt
 from sqlalchemy import or_
 
 
@@ -117,29 +118,7 @@ class Trip(db.Model):
     accepted_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
 
-# Routes
-@app.route('/api/signup', methods=['POST'])
-def signup():
-    data = request.get_json()
-    
-    if User.query.filter_by(email=data['email']).first():
-        return jsonify({'error': 'Email already exists'}), 400
-    
-    user = User(
-        id=str(uuid.uuid4()),  # Generate UUID for string ID
-        name=data['name'],
-        email=data['email'],
-        contact_number=data.get('contact_number') or data.get('phone'),
-        password_hash=generate_password_hash(data['password']) if data.get('password') else None,
-        role=data.get('role', 'driver'),
-        agency_id=data.get('agency_id'),
-        company_id=data.get('company_id')
-    )
-    
-    db.session.add(user)
-    db.session.commit()
-    
-    return jsonify({'message': 'User created successfully', 'user_id': user.id}), 201
+
 
 @app.route('/api/auth/agencies', methods=['GET'])
 def get_agencies():
@@ -158,53 +137,58 @@ def get_agencies():
 @app.route('/api/auth/login', methods=['POST'])
 @app.route('/api/login', methods=['POST'])
 def login():
-    data = request.get_json()
-    print(f"Login request data: {data}")  # Debug logging
-    
-    if not data:
-        return jsonify({'error': 'No data provided'}), 400
-    
-    # Drivers login with contact number (username field in mobile app)
-    contact_number = data.get('username') or data.get('phone')
-    if not contact_number:
-        return jsonify({'error': 'Contact number is required for driver login'}), 400
-    
-    # Find user by contact_number
-    user = User.query.filter_by(contact_number=contact_number).first()
-    
+    data = request.get_json() or {}
+
+    phone = data.get('username')
+    password = data.get('password')
+    agency_id = data.get('agency_id')
+
+    if not phone or not password:
+        return jsonify({
+            'error': 'Phone number and password are required'
+        }), 400
+
+    user = User.query.filter_by(contact_number=phone).first()
+
     if not user:
-        return jsonify({'error': 'User not found'}), 401
-    
-    # Verify password if password_hash exists and is valid
-    if user.password_hash:
-        try:
-            if not check_password_hash(user.password_hash, data.get('password', '')):
-                return jsonify({'error': 'Invalid credentials'}), 401
-        except ValueError:
-            # Handle invalid hash format (e.g. plain text password from legacy data)
-            print("Invalid password hash format, checking as plain text")
-            if user.password_hash == data.get('password', ''):
-                # Update to proper hash
-                user.password_hash = generate_password_hash(data.get('password', ''))
-                db.session.commit()
-            else:
-                return jsonify({'error': 'Invalid credentials'}), 401
-    
-    # Update last login time
-    user.last_login = datetime.now(timezone.utc)
-    db.session.commit()
-    
+        return jsonify({
+            'error': 'Invalid phone number or password'
+        }), 401
+
+    if not user.password_hash:
+        return jsonify({
+            'error': 'Password is not configured for this user'
+        }), 401
+
+    try:
+        password_valid = bcrypt.checkpw(
+            password.encode('utf-8'),
+            user.password_hash.encode('utf-8')
+        )
+    except (ValueError, TypeError):
+        return jsonify({
+            'error': 'Invalid password hash'
+        }), 401
+
+    if not password_valid:
+        return jsonify({
+            'error': 'Invalid phone number or password'
+        }), 401
+
     return jsonify({
         'message': 'Login successful',
+
+        # Your frontend currently expects this
+        'access_token': user.id,
+
         'user': {
             'id': user.id,
             'name': user.name,
             'email': user.email,
-            'contact_number': user.contact_number,
             'phone': user.contact_number,
-            'role': user.role or 'driver',
-            'agency_id': user.agency_id or data.get('agency_id'),
+            'agency_id': user.agency_id,
             'company_id': user.company_id,
+            'role': user.role,
             'is_active': user.is_active
         }
     }), 200
