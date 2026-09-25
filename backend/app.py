@@ -8,22 +8,20 @@ import requests
 import threading
 import time
 from datetime import datetime, timedelta, timezone
+import uuid
+from sqlalchemy import or_
 
 
 app = Flask(__name__)
 CORS(app)
 
-# Database configuration - using SQLite for local storage, PostgreSQL for trip schedules
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///travel_management.db')
-app.config['SQLALCHEMY_BINDS'] = {
-    'postgres_db': os.environ.get('POSTGRES_DATABASE_URL', 'postgresql://postgres:srisainila@localhost:5432/postgres')
-}
+# Database configuration - using Render PostgreSQL for everything
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://agent_managment_system_user:prHKXAv6HBWK0JkDnRuF5lossFAvPehY@dpg-dah4g5142hec73eol01g-a.singapore-postgres.render.com/agent_managment_system'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
 class TripSchedule(db.Model):
-    __bind_key__ = 'postgres_db'
     __tablename__ = "trip_schedules"
     id = db.Column(db.String, primary_key=True, index=True)
     agency_id = db.Column(db.String, nullable=True, index=True)
@@ -66,7 +64,6 @@ class TripSchedule(db.Model):
 
 
 class PostgresAgency(db.Model):
-    __bind_key__ = 'postgres_db'
     __tablename__ = 'agencies'
     id = db.Column(db.String, primary_key=True)
     agency_name = db.Column(db.String, nullable=False)
@@ -76,15 +73,22 @@ class PostgresAgency(db.Model):
 # Models
 class User(db.Model):
     __tablename__ = 'users'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(255), nullable=False)
-    phone = db.Column(db.String(20), nullable=False)
-    vehicle_number = db.Column(db.String(20))
-    license_number = db.Column(db.String(50))
-    is_driver = db.Column(db.Boolean, default=True)
+    id = db.Column(db.String, primary_key=True)
+    agency_id = db.Column(db.String, nullable=True)
+    company_id = db.Column(db.String, nullable=True)
+    name = db.Column(db.String, nullable=False)
+    email = db.Column(db.String, nullable=False)
+    contact_number = db.Column(db.String, nullable=True)
+    password_hash = db.Column(db.String, nullable=True)
+    role = db.Column(db.String, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    last_login = db.Column(db.DateTime, nullable=True)
+    reset_otp = db.Column(db.String, nullable=True)
+    reset_otp_expires_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=True)
+    reset_password_otp = db.Column(db.String(255), nullable=True)
+    reset_password_otp_expires_at = db.Column(db.DateTime, nullable=True)
 
 # // class PushToken(db.Model):
 # //     __tablename__ = 'push_tokens'
@@ -108,7 +112,7 @@ class Trip(db.Model):
     status = db.Column(db.String(20), default='pending')  # pending, accepted, rejected, completed
     fare = db.Column(db.Float)
     distance = db.Column(db.Float)
-    driver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    driver_id = db.Column(db.String, db.ForeignKey('users.id'), nullable=True)  # Changed to String to match User.id
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     accepted_at = db.Column(db.DateTime)
     completed_at = db.Column(db.DateTime)
@@ -122,13 +126,14 @@ def signup():
         return jsonify({'error': 'Email already exists'}), 400
     
     user = User(
+        id=str(uuid.uuid4()),  # Generate UUID for string ID
         name=data['name'],
         email=data['email'],
-        password=generate_password_hash(data['password']),
-        phone=data['phone'],
-        vehicle_number=data.get('vehicle_number', ''),
-        license_number=data.get('license_number', ''),
-        is_driver=data.get('is_driver', True)
+        contact_number=data.get('contact_number') or data.get('phone'),
+        password_hash=generate_password_hash(data['password']) if data.get('password') else None,
+        role=data.get('role', 'driver'),
+        agency_id=data.get('agency_id'),
+        company_id=data.get('company_id')
     )
     
     db.session.add(user)
@@ -154,10 +159,40 @@ def get_agencies():
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.get_json()
-    user = User.query.filter_by(email=data['email']).first()
+    print(f"Login request data: {data}")  # Debug logging
     
-    if not user or not check_password_hash(user.password, data['password']):
-        return jsonify({'error': 'Invalid credentials'}), 401
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    # Drivers login with contact number (username field in mobile app)
+    contact_number = data.get('username') or data.get('phone')
+    if not contact_number:
+        return jsonify({'error': 'Contact number is required for driver login'}), 400
+    
+    # Find user by contact_number
+    user = User.query.filter_by(contact_number=contact_number).first()
+    
+    if not user:
+        return jsonify({'error': 'User not found'}), 401
+    
+    # Verify password if password_hash exists and is valid
+    if user.password_hash:
+        try:
+            if not check_password_hash(user.password_hash, data.get('password', '')):
+                return jsonify({'error': 'Invalid credentials'}), 401
+        except ValueError:
+            # Handle invalid hash format (e.g. plain text password from legacy data)
+            print("Invalid password hash format, checking as plain text")
+            if user.password_hash == data.get('password', ''):
+                # Update to proper hash
+                user.password_hash = generate_password_hash(data.get('password', ''))
+                db.session.commit()
+            else:
+                return jsonify({'error': 'Invalid credentials'}), 401
+    
+    # Update last login time
+    user.last_login = datetime.now(timezone.utc)
+    db.session.commit()
     
     return jsonify({
         'message': 'Login successful',
@@ -165,10 +200,12 @@ def login():
             'id': user.id,
             'name': user.name,
             'email': user.email,
-            'phone': user.phone,
-            'vehicle_number': user.vehicle_number,
-            'license_number': user.license_number,
-            'is_driver': user.is_driver
+            'contact_number': user.contact_number,
+            'phone': user.contact_number,
+            'role': user.role or 'driver',
+            'agency_id': user.agency_id or data.get('agency_id'),
+            'company_id': user.company_id,
+            'is_active': user.is_active
         }
     }), 200
 

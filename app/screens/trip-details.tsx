@@ -2,12 +2,8 @@ import { session, tripsAPI } from '@/services/api';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, LayoutAnimation } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 export default function TripDetailsScreen() {
   const { tripId, leg } = useLocalSearchParams();
