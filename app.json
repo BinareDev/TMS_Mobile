@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "myExpoApp",
-    "slug": "myExpoApp",
+    "name": "Dritra",
+    "slug": "dritra",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -18,7 +18,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.sai_30072002.myExpoApp"
+      "package": "com.andriod.dritra"
     },
     "web": {
       "output": "static",
@@ -41,7 +41,15 @@
       "expo-font",
       "expo-web-browser",
       "expo-image",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#ffffff",
+          "sounds": []
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
