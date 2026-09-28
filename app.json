@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dritra",
     "slug": "dritra",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myexpoapp",
@@ -18,7 +18,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.andriod.dritra"
+      "package": "com.andriod.dritra",
+      "versionCode": 2
     },
     "web": {
       "output": "static",
