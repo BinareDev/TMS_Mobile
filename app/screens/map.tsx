@@ -12,24 +12,34 @@ export default function MapScreen() {
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setErrorMsg('Permission to access location was denied');
-        return;
-      }
+      try {
+        setIsLoading(true);
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setErrorMsg('Permission to access location was denied');
+          setIsLoading(false);
+          return;
+        }
 
-      let currentLocation = await Location.getCurrentPositionAsync({});
-      setLocation(currentLocation);
-      
-      setRegion({
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      });
+        let currentLocation = await Location.getCurrentPositionAsync({});
+        setLocation(currentLocation);
+        
+        setRegion({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+          latitudeDelta: 0.0922,
+          longitudeDelta: 0.0421,
+        });
+      } catch (error) {
+        console.error('Location error:', error);
+        setErrorMsg('Could not get your location. Please check your GPS settings.');
+      } finally {
+        setIsLoading(false);
+      }
     })();
   }, []);
 
@@ -49,10 +59,21 @@ export default function MapScreen() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.loadingText}>Getting your location...</Text>
+      </View>
+    );
+  }
+
   if (errorMsg) {
     return (
       <View style={styles.container}>
         <Text style={styles.errorText}>{errorMsg}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={handleGetCurrentLocation}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -141,5 +162,24 @@ const styles = StyleSheet.create({
     color: '#ef4444',
     textAlign: 'center',
     marginTop: 50,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 50,
+  },
+  retryButton: {
+    backgroundColor: '#6366f1',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 20,
+    marginHorizontal: 40,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
