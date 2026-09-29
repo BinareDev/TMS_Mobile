@@ -18,6 +18,12 @@ export default function MapScreen() {
     (async () => {
       try {
         setIsLoading(true);
+        
+        // Add timeout to location request
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Location timeout')), 10000)
+        );
+        
         let { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
           setErrorMsg('Permission to access location was denied');
@@ -25,7 +31,11 @@ export default function MapScreen() {
           return;
         }
 
-        let currentLocation = await Location.getCurrentPositionAsync({});
+        let currentLocation = await Promise.race([
+          Location.getCurrentPositionAsync({}),
+          timeoutPromise
+        ]) as Location.LocationObject;
+        
         setLocation(currentLocation);
         
         setRegion({
@@ -36,7 +46,20 @@ export default function MapScreen() {
         });
       } catch (error) {
         console.error('Location error:', error);
-        setErrorMsg('Could not get your location. Please check your GPS settings.');
+        // Use default location instead of showing error
+        setLocation({
+          coords: {
+            latitude: 37.78825,
+            longitude: -122.4324,
+            altitude: null,
+            accuracy: 10,
+            altitudeAccuracy: null,
+            heading: null,
+            speed: null,
+          },
+          timestamp: Date.now(),
+        });
+        setErrorMsg('Using default location (San Francisco). GPS may be disabled.');
       } finally {
         setIsLoading(false);
       }
