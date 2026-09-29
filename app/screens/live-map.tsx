@@ -908,7 +908,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   map: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   headerControls: {
     position: 'absolute',
