@@ -24,7 +24,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.andriod.dritra",
-      "versionCode": 8,
+      "versionCode": 9,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
@@ -59,6 +59,12 @@
       "expo-web-browser",
       "expo-image",
       "expo-status-bar",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow this app to use your location to track trips."
+        }
+      ],
       [
         "expo-notifications",
         {
