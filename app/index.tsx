@@ -1,4 +1,4 @@
-import { authAPI, session, setAuthToken } from '@/services/api';
+import { authAPI, session, setAuthToken, saveSession, loadSession } from '@/services/api';
 import { initializePushNotifications, setupNotificationListeners, showLocalNotification } from '@/services/notifications';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -14,8 +14,20 @@ export default function LoginScreen() {
   const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
+    checkExistingSession();
     fetchAgencies();
   }, []);
+
+  const checkExistingSession = async () => {
+    const hasSession = await loadSession();
+    if (hasSession) {
+      if (session.user && session.user.id) {
+        setupNotificationListeners();
+        initializePushNotifications(session.user.id);
+      }
+      router.replace('/dashboard');
+    }
+  };
 
   const fetchAgencies = async () => {
     try {
@@ -68,6 +80,9 @@ export default function LoginScreen() {
           ...response.user,
           agency_id: selectedAgency.id,
         };
+
+        // Save session permanently
+        await saveSession(response.access_token, session.user);
 
         // Initialize push notifications for the logged in user
         if (session.user && session.user.id) {

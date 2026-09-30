@@ -1,4 +1,5 @@
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://tms-backend-3t1c.onrender.com/api';
@@ -26,9 +27,41 @@ export const session: {
   user: null,
 };
 
-// Dummy loadSession to avoid breaking pages
+export const saveSession = async (token: string, user: any) => {
+  try {
+    await AsyncStorage.setItem('auth_token', token);
+    await AsyncStorage.setItem('auth_user', JSON.stringify(user));
+  } catch (e) {
+    console.error('Failed to save session', e);
+  }
+};
+
+export const clearSession = async () => {
+  try {
+    await AsyncStorage.removeItem('auth_token');
+    await AsyncStorage.removeItem('auth_user');
+    setAuthToken(null);
+    session.user = null;
+  } catch (e) {
+    console.error('Failed to clear session', e);
+  }
+};
+
 export const loadSession = async () => {
-  // Session details are managed in memory during runtime
+  try {
+    const token = await AsyncStorage.getItem('auth_token');
+    const userStr = await AsyncStorage.getItem('auth_user');
+    
+    if (token && userStr) {
+      const user = JSON.parse(userStr);
+      setAuthToken(token);
+      session.user = user;
+      return true; // Session exists
+    }
+  } catch (e) {
+    console.error('Failed to load session', e);
+  }
+  return false;
 };
 
 // Fallback for AsyncStorage if it crashes
