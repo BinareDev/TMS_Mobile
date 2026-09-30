@@ -304,7 +304,7 @@ for (
 
 // Send an immediate local notification (used for instant alerts in Expo Go)
 export const showLocalNotification = async (title: string, body: string) => {
-  if (Platform.OS === 'android' && isRunningInExpoGo()) {
+  if (Platform.OS === 'android') {
     const hasPermission = await requestNotificationPermissions();
     if (!hasPermission) return;
 
@@ -380,9 +380,9 @@ export const scheduleCertificationExpiryNotification = async (driverId: string |
   }
 };
 
-// Cancel local notifications for a specific trip in Expo Go, or let backend manage it in dev builds
+// Cancel local notifications for a specific trip
 export const cancelTripNotifications = async (tripId: string | number) => {
-  if (Platform.OS === 'android' && isRunningInExpoGo()) {
+  if (Platform.OS === 'android') {
     try {
       const scheduled = await Notifications.getAllScheduledNotificationsAsync();
       for (const notification of scheduled) {
@@ -399,11 +399,10 @@ export const cancelTripNotifications = async (tripId: string | number) => {
   }
 };
 
-// Schedule local notifications for multiple trips in Expo Go, or let backend manage it in dev builds
+// Schedule local notifications for multiple trips
 export const scheduleMultipleTripNotifications = async (trips: TripNotification[]) => {
-  console.log(`[Notification Fallback] Scheduling local reminders for ${trips.length} trips in notifiction.tsx...`);
-  if (Platform.OS === 'android' && isRunningInExpoGo()) {
-    console.log('[Notification Fallback] Scheduling local reminders for Expo Go on Android...');
+  console.log(`Scheduling local reminders for ${trips.length} trips...`);
+  if (Platform.OS === 'android') {
     for (const trip of trips) {
       await scheduleLocalTripReminders(trip);
     }

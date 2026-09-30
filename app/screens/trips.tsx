@@ -1,6 +1,6 @@
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { activeSession, api, loadSession, session, tripsAPI } from '@/services/api';
-// import { cancelTripNotifications, scheduleMultipleTripNotifications, showLocalNotification, TripNotification } from '@/services/notifications';
+import { cancelTripNotifications, scheduleMultipleTripNotifications, showLocalNotification, TripNotification } from '@/services/notifications';
 import { FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
@@ -538,35 +538,25 @@ export default function TripsScreen() {
       // // --------------------
       // // SCHEDULE 15/10/5 MIN REMINDERS
       // // --------------------
-      // const notificationTrips: TripNotification[] = data
-      //   .filter(
-      //     (t: any) =>
-      //       currentTripId !== null &&
-      //       String(t.id) === currentTripId
-      //   )
-      //   .map((t: any) => ({
-      //     tripId: t.id,
-      //     passengerName: t.company_name
-      //       ? `Company: ${t.company_name}`
-      //       : "Passenger",
+      const notificationTrips: TripNotification[] = data
+        .filter((t: any) => t.status !== 'completed' && t.driver_response !== 'declined' && t.is_active !== false)
+        .map((t: any) => ({
+          tripId: t.id,
+          passengerName: t.company_name ? `Company: ${t.company_name}` : "Passenger",
+          pickupLocation: t.starting_point,
+          startDate: t.start_date,
+          endDate: t.end_date,
+          startTime: t.one_way_start_time,
+          isPending: t.driver_response !== "accepted",
+        }));
 
-      //     pickupLocation: t.starting_point,
+      // Cancel old reminders first (avoid duplicates)
+      for (const trip of notificationTrips) {
+        await cancelTripNotifications(trip.tripId);
+      }
 
-      //     startDate: t.start_date,
-      //     endDate: t.end_date,
-
-      //     startTime: t.one_way_start_time,
-
-      //     isPending: t.driver_response !== "accepted",
-      //   }));
-
-      // // Cancel old reminders first (avoid duplicates)
-      // for (const trip of notificationTrips) {
-      //   await cancelTripNotifications(trip.tripId);
-      // }
-
-      // // Schedule new reminders
-      // await scheduleMultipleTripNotifications(notificationTrips);
+      // Schedule new reminders
+      await scheduleMultipleTripNotifications(notificationTrips);
     } catch (error: any) {
       if (error.response?.status === 401) {
         Alert.alert('Session Expired', 'Please log in again');
