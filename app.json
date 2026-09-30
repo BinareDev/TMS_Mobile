@@ -24,12 +24,14 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.andriod.dritra",
-      "versionCode": 10,
+      "versionCode": 11,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
-        "INTERNET"
+        "INTERNET",
+        "POST_NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM"
       ],
       "config": {
         "googleMaps": {

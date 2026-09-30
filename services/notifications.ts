@@ -10,6 +10,7 @@ const getMockNotificationsModule = () => ({
   requestPermissionsAsync: async () => ({ status: 'undetermined' }),
   setNotificationChannelAsync: async () => {},
   getExpoPushTokenAsync: async () => ({ data: '' }),
+  getDevicePushTokenAsync: async () => ({ data: '' }),
   addNotificationReceivedListener: () => ({ remove: () => {} }),
   addNotificationResponseReceivedListener: () => ({ remove: () => {} }),
   scheduleNotificationAsync: async () => '',
@@ -145,13 +146,20 @@ export const registerForPushNotificationsAsync = async (): Promise<string | null
     return null;
   }
 
-  // Get the push token
-  const token = await Notifications.getExpoPushTokenAsync({
-    projectId: '7a86d66b-ab5f-48e2-954b-ac1a71e52db0',
-  });
+  const provider = Platform.OS === 'android' ? 'fcm' : 'expo';
+  const tokenResponse = Platform.OS === 'android'
+    ? await Notifications.getDevicePushTokenAsync()
+    : await Notifications.getExpoPushTokenAsync({
+        projectId: '7a86d66b-ab5f-48e2-954b-ac1a71e52db0',
+      });
 
-  console.log('Push token:', token.data);
-  return token.data;
+  if (typeof tokenResponse.data !== 'string') {
+    console.error('Push provider returned a token in an unsupported format');
+    return null;
+  }
+
+  console.log(`${provider} push token registered`);
+  return tokenResponse.data;
 };
 
 // Send push token to backend
@@ -161,6 +169,7 @@ export const sendPushTokenToBackend = async (token: string, userId: string) => {
       token,
       user_id: userId,
       platform: Platform.OS,
+      provider: Platform.OS === 'android' ? 'fcm' : 'expo',
     });
     
     if (response.status === 200 || response.status === 201) {

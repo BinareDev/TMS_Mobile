@@ -1,5 +1,5 @@
 import { authAPI, session, setAuthToken } from '@/services/api';
-import { initializePushNotifications, setupNotificationListeners } from '@/services/notifications';
+import { initializePushNotifications, setupNotificationListeners, showLocalNotification } from '@/services/notifications';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -71,8 +71,16 @@ export default function LoginScreen() {
 
         // Initialize push notifications for the logged in user
         if (session.user && session.user.id) {
-          initializePushNotifications(session.user.id);
           setupNotificationListeners();
+          try {
+            await showLocalNotification(
+              'Login notification test',
+              'Login successful. Notifications are enabled on this device.'
+            );
+          } catch (notificationError) {
+            console.error('Failed to show login notification test', notificationError);
+          }
+          initializePushNotifications(session.user.id);
         }
 
         Alert.alert('Success', 'Login successful');
