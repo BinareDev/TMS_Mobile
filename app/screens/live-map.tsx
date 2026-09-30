@@ -5,7 +5,11 @@ import * as Location from 'expo-location';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Dimensions, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+import MapView, {
+  Marker,
+  Polyline,
+  PROVIDER_GOOGLE,
+} from 'react-native-maps';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width * 0.8;
@@ -509,6 +513,7 @@ export default function LiveMapScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <MapView
         ref={mapRef}
+        provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={{
           latitude: (trip.pickup_lat + trip.dropoff_lat) / 2,
@@ -516,7 +521,7 @@ export default function LiveMapScreen() {
           latitudeDelta: 0.08,
           longitudeDelta: 0.08,
         }}
-        onMapReady={centerOnAll}
+
       >
         {/* Route Line */}
         <Polyline

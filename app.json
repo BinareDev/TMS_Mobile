@@ -60,12 +60,6 @@
       "expo-image",
       "expo-status-bar",
       [
-        "expo-location",
-        {
-          "locationAlwaysAndWhenInUsePermission": "Allow this app to use your location to track trips."
-        }
-      ],
-      [
         "expo-notifications",
         {
           "icon": "./assets/images/icon.png",
