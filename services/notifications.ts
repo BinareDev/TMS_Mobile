@@ -147,7 +147,7 @@ export const registerForPushNotificationsAsync = async (): Promise<string | null
 
   // Get the push token
   const token = await Notifications.getExpoPushTokenAsync({
-    projectId: '2a4fea61-aba5-4a5f-9fee-3401aeb6bec0',
+    projectId: '7a86d66b-ab5f-48e2-954b-ac1a71e52db0',
   });
 
   console.log('Push token:', token.data);
