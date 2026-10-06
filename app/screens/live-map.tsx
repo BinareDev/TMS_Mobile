@@ -68,11 +68,11 @@ export default function LiveMapScreen() {
     setDriverLocation(currentLoc);
 
     locationSubscription.current = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 5000,
-        distanceInterval: 10,
-      },
+  {
+    accuracy: Location.Accuracy.High,
+    timeInterval: 2000,
+    distanceInterval: 3,
+  },
       (loc) => {
         setDriverLocation(loc);
 
