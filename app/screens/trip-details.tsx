@@ -31,11 +31,25 @@ export default function TripDetailsScreen() {
   }, [tripId, leg]);
 
   // Fetch route from OSRM (Open Source Routing Machine) - free, no API key required
-  const fetchRoute = async (startLat: number, startLng: number, endLat: number, endLng: number) => {
+  const fetchRoute = async (startLat: number, startLng: number, endLat: number, endLng: number, passList: any[] = []) => {
     try {
-      console.log('Fetching route from', startLat, startLng, 'to', endLat, endLng);
+      console.log('Fetching route from', startLat, startLng, 'to', endLat, endLng, 'with', passList.length, 'passengers');
+      
+      // Build waypoints including intermediate stops from passengers
+      const coords = [`${startLng},${startLat}`];
+      
+      // Add all passengers as waypoints so the route actually goes to them
+      passList.forEach(p => {
+        if (p.lat && p.lng) {
+          coords.push(`${p.lng},${p.lat}`);
+        }
+      });
+      
+      coords.push(`${endLng},${endLat}`);
+      const coordString = coords.join(';');
+      
       const response = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`
+        `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson`
       );
       const data = await response.json();
       console.log('OSRM response:', data);
@@ -242,7 +256,7 @@ export default function TripDetailsScreen() {
         
         // Fetch route coordinates for return leg
         if (tripData.dropoff_lat && tripData.dropoff_lng && tripData.pickup_lat && tripData.pickup_lng) {
-          fetchRoute(tripData.dropoff_lat, tripData.dropoff_lng, tripData.pickup_lat, tripData.pickup_lng);
+          fetchRoute(tripData.dropoff_lat, tripData.dropoff_lng, tripData.pickup_lat, tripData.pickup_lng, tripData.passengers || []);
         }
       } else {
         setTrip(tripData);
@@ -250,7 +264,7 @@ export default function TripDetailsScreen() {
         
         // Fetch route coordinates when trip is loaded
         if (tripData.pickup_lat && tripData.pickup_lng && tripData.dropoff_lat && tripData.dropoff_lng) {
-          fetchRoute(tripData.pickup_lat, tripData.pickup_lng, tripData.dropoff_lat, tripData.dropoff_lng);
+          fetchRoute(tripData.pickup_lat, tripData.pickup_lng, tripData.dropoff_lat, tripData.dropoff_lng, tripData.passengers || []);
         }
       }
     } catch (error: any) {
