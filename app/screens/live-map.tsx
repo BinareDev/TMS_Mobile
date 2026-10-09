@@ -29,6 +29,8 @@ export default function LiveMapScreen() {
   const isSimulatingRef = useRef(false);
   const mapRef = useRef<MapView>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+  const lastRouteRecalculationRef = useRef(0);
+  const [routeWaypoints, setRouteWaypoints] = useState<any[]>([]);
 
   const driverId = session.user?.id || 'cf6912d9-6617-482b-aacf-dd034c780185';
   const agencyId = session.user?.agency_id || '6e7cdb44-603c-46c4-a4ca-198334c34314';
@@ -76,6 +78,9 @@ export default function LiveMapScreen() {
       (loc) => {
         setDriverLocation(loc);
 
+        // Recalculate route dynamically
+        recalculateRoute(loc.coords.latitude, loc.coords.longitude);
+
         // Push the updated location to the backend if we have an active location session
         if (activeSession && activeSession.location_id) {
           tripsAPI.updateLocation(activeSession.location_id, {
@@ -104,6 +109,14 @@ export default function LiveMapScreen() {
       coords.push(`${endLng},${endLat}`);
       const coordString = coords.join(';');
 
+      // Save waypoints for dynamic recalculation
+      const waypoints = [
+        { lat: startLat, lng: startLng },
+        ...passList.filter(p => p.lat && p.lng).map(p => ({ lat: p.lat, lng: p.lng })),
+        { lat: endLat, lng: endLng }
+      ];
+      setRouteWaypoints(waypoints);
+
       const response = await fetch(
         `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson`
       );
@@ -126,6 +139,53 @@ export default function LiveMapScreen() {
         { latitude: startLat, longitude: startLng },
         { latitude: endLat, longitude: endLng },
       ]);
+    }
+  };
+
+  // Dynamic route recalculation when driver location changes
+  const recalculateRoute = async (currentLat: number, currentLng: number) => {
+    if (routeWaypoints.length < 2) return;
+
+    // Debounce: only recalculate if at least 5 seconds have passed since last recalculation
+    const now = Date.now();
+    if (now - lastRouteRecalculationRef.current < 5000) {
+      return;
+    }
+    lastRouteRecalculationRef.current = now;
+
+    // Build new waypoints: driver current location -> all intermediate stops -> end
+    const newWaypoints = [
+      { lat: currentLat, lng: currentLng }
+    ];
+
+    // Add intermediate stops (skip first waypoint which is original start, skip last which is end)
+    if (routeWaypoints.length > 2) {
+      for (let i = 1; i < routeWaypoints.length - 1; i++) {
+        newWaypoints.push(routeWaypoints[i]);
+      }
+    }
+
+    // Add final destination
+    newWaypoints.push(routeWaypoints[routeWaypoints.length - 1]);
+
+    try {
+      const coords = newWaypoints.map(wp => `${wp.lng},${wp.lat}`);
+      const coordString = coords.join(';');
+
+      const response = await fetch(
+        `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson`
+      );
+      const data = await response.json();
+
+      if (data.routes && data.routes.length > 0) {
+        const coordinates = data.routes[0].geometry.coordinates.map((coord: any) => ({
+          latitude: coord[1],
+          longitude: coord[0],
+        }));
+        setRouteCoordinates(coordinates);
+      }
+    } catch (error) {
+      console.error('Dynamic route recalculation failed', error);
     }
   };
 
