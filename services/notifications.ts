@@ -72,6 +72,7 @@ Notifications.setNotificationHandler({
 
 export interface TripNotification {
   tripId: string |number;
+  leg?: 'outbound' | 'return';
   passengerName: string;
   pickupLocation: string;
 
@@ -215,14 +216,22 @@ export const setupNotificationListeners = () => {
       const driverId = 'cf6912d9-6617-482b-aacf-dd034c780185'; // fallback active driver
 
       if (actionId === 'accept_trip') {
-        console.log(`Accepting trip ${data.tripId} via notification action`);
+        console.log(`Accepting trip ${data.tripId} leg ${data.leg} via notification action`);
         try {
-          await tripsAPI.acceptTrip(data.tripId as string, driverId);
+          if (data.leg === 'return') {
+            await tripsAPI.acceptReturnTrip(data.tripId as string, driverId);
+          } else {
+            await tripsAPI.acceptTrip(data.tripId as string, driverId);
+          }
         } catch (e) { console.error('Failed to accept trip', e); }
       } else if (actionId === 'decline_trip') {
-        console.log(`Declining trip ${data.tripId} via notification action`);
+        console.log(`Declining trip ${data.tripId} leg ${data.leg} via notification action`);
         try {
-          await tripsAPI.rejectTrip(data.tripId as string, driverId);
+          if (data.leg === 'return') {
+            await tripsAPI.rejectReturnTrip(data.tripId as string, driverId);
+          } else {
+            await tripsAPI.rejectTrip(data.tripId as string, driverId);
+          }
         } catch (e) { console.error('Failed to decline trip', e); }
       } else {
         // Just tapped the notification
@@ -250,7 +259,7 @@ const [hour, minute, second] = trip.startTime
   .split(":")
   .map(Number);
 
-const intervals = [15, 10, 5];
+const intervals = trip.isPending ? [15, 10, 5] : [1];
 
 for (
   let current = new Date(startDate);
@@ -277,23 +286,24 @@ for (
     }
 
     await Notifications.scheduleNotificationAsync({
-      identifier: `trip-${trip.tripId}-${current.toISOString().split("T")[0]}-${minutes}`,
+      identifier: `trip-${trip.tripId}-${trip.leg || 'outbound'}-${current.toISOString().split("T")[0]}-${minutes}`,
       content: {
         title: trip.isPending
           ? `Action Required - Trip in ${minutes}m`
-          : `Trip Reminder - ${minutes} minutes`,
+          : `Trip Going to Start`,
         body: trip.isPending
           ? `Please ACCEPT or DECLINE your trip for ${trip.passengerName}.`
-          : `Trip for ${trip.passengerName} starts in ${minutes} minutes.`,
+          : `Trip for ${trip.passengerName} is going to start in 1 minute.`,
         data: {
           tripId: trip.tripId,
+          leg: trip.leg || 'outbound'
         },
         categoryIdentifier: trip.isPending
           ? "pending_trip"
           : undefined,
         sound: true,
-        vibrate: trip.isPending && minutes <= 5 
-          ? [0, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000] 
+        vibrate: trip.isPending && minutes <= 5
+          ? [0, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000]
           : undefined,
       },
       trigger: {

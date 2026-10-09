@@ -538,17 +538,38 @@ export default function TripsScreen() {
       // // --------------------
       // // SCHEDULE 15/10/5 MIN REMINDERS
       // // --------------------
-      const notificationTrips: TripNotification[] = data
-        .filter((t: any) => t.status !== 'completed' && t.driver_response !== 'declined' && t.is_active !== false)
-        .map((t: any) => ({
-          tripId: t.id,
-          passengerName: t.company_name ? `Company: ${t.company_name}` : "Passenger",
-          pickupLocation: t.starting_point,
-          startDate: t.start_date,
-          endDate: t.end_date,
-          startTime: t.one_way_start_time,
-          isPending: t.driver_response !== "accepted",
-        }));
+      const notificationTrips: TripNotification[] = [];
+      data.forEach((t: any) => {
+        if (t.status === 'completed' || t.is_active === false) return;
+
+        // Outbound Leg
+        if (t.driver_response !== 'declined' && t.one_way_start_time && t.status !== 'completed') {
+          notificationTrips.push({
+            tripId: t.id,
+            leg: 'outbound',
+            passengerName: t.company_name ? `Company: ${t.company_name}` : "Passenger",
+            pickupLocation: t.starting_point,
+            startDate: t.start_date,
+            endDate: t.end_date,
+            startTime: t.one_way_start_time,
+            isPending: t.driver_response !== "accepted",
+          });
+        }
+
+        // Return Leg
+        if (t.two_way_start_time && t.driver_response_two_way !== 'declined' && t.status !== 'completed') {
+          notificationTrips.push({
+            tripId: t.id,
+            leg: 'return',
+            passengerName: t.company_name ? `Company: ${t.company_name}` : "Passenger",
+            pickupLocation: t.end_point || t.starting_point,
+            startDate: t.start_date,
+            endDate: t.end_date,
+            startTime: t.two_way_start_time,
+            isPending: t.driver_response_two_way !== "accepted",
+          });
+        }
+      });
 
       // Cancel old reminders first (avoid duplicates)
       for (const trip of notificationTrips) {
@@ -723,6 +744,13 @@ export default function TripsScreen() {
 
     const isCurrentlyRunning = item.is_started && activeTab === 'current' && item.is_active !== false;
 
+    // Check if trip is within 2 minutes of start time for showing Start Trip button
+    const now = new Date();
+    const tripStartTime = item.start_time ? new Date(item.start_time) : null;
+    const timeDiff = tripStartTime ? tripStartTime.getTime() - now.getTime() : Infinity;
+    const isWithinTwoMinutes = timeDiff <= 2 * 60 * 1000; // From 2 minutes before and onwards
+    const shouldShowStartButton = item.status === 'accepted' && !item.is_started && isWithinTwoMinutes && activeTab === 'current';
+
     return (
       <View style={[
         styles.card, 
@@ -805,6 +833,24 @@ export default function TripsScreen() {
           </View>
         </View>
 
+        {shouldShowStartButton && (
+          <TouchableOpacity
+            style={styles.startTripButton}
+            onPress={() => {
+              // Navigate to live map to start the trip
+              router.push({
+                pathname: '/screens/live-map',
+                params: {
+                  tripId: item.original_id ? item.original_id.toString() : item.id.toString(),
+                  leg: item.leg || 'outbound',
+                  status: item.status
+                }
+              });
+            }}
+          >
+            <Text style={styles.actionButtonText}>Start Trip</Text>
+          </TouchableOpacity>
+        )}
 
         {item.status === 'accepted' && activeTab === 'current' && item.is_active !== false && item.is_started === true && (
           <>
@@ -1306,6 +1352,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     width: '100%',
+  },
+  startTripButton: {
+    backgroundColor: '#10b981',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    width: '100%',
+    marginTop: 10,
   },
   actionButtonText: {
     color: '#ffffff',

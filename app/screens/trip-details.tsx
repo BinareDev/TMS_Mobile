@@ -286,10 +286,20 @@ export default function TripDetailsScreen() {
         setTrip((prev: any) => ({ ...prev, status: 'accepted' }));
         return;
       }
-      await tripsAPI.acceptTrip(tripId as string, driverId);
+      
+      // Optimistic update to immediately hide the button
+      setTrip((prev: any) => ({ ...prev, status: 'accepted' }));
+      
+      // Check if this is a return leg and call the appropriate API
+      if (leg === 'return') {
+        await tripsAPI.acceptReturnTrip(tripId as string, driverId);
+      } else {
+        await tripsAPI.acceptTrip(tripId as string, driverId);
+      }
       Alert.alert('Success', 'Trip accepted successfully');
       loadTripDetails();
     } catch (error) {
+      loadTripDetails(); // Revert on failure
       Alert.alert('Error', 'Failed to accept trip');
     }
   };
@@ -301,7 +311,13 @@ export default function TripDetailsScreen() {
         router.back();
         return;
       }
-      await tripsAPI.rejectTrip(tripId as string, driverId);
+      
+      if (leg === 'return') {
+        await tripsAPI.rejectReturnTrip(tripId as string, driverId);
+      } else {
+        await tripsAPI.rejectTrip(tripId as string, driverId);
+      }
+      
       Alert.alert('Success', 'Trip rejected');
       router.back();
     } catch (error) {
