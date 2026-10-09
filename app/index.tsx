@@ -1,3 +1,4 @@
+import { showCustomAlert } from '@/components/GlobalAlert';
 import { authAPI, session, setAuthToken, saveSession, loadSession } from '@/services/api';
 import { initializePushNotifications, setupNotificationListeners, showLocalNotification } from '@/services/notifications';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -55,11 +56,11 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!selectedAgency) {
-      Alert.alert('Error', 'Please select an agency');
+      showCustomAlert('Error', 'Please select an agency');
       return;
     }
     if (!phoneNumber || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      showCustomAlert('Error', 'Please fill in all fields');
       return;
     }
 
@@ -98,13 +99,13 @@ export default function LoginScreen() {
           initializePushNotifications(session.user.id);
         }
 
-        Alert.alert('Success', 'Login successful');
+        showCustomAlert('Success', 'Login successful');
         router.replace('/dashboard'); // Navigate to tabs
       } else {
-        Alert.alert('Error', 'Invalid login response');
+        showCustomAlert('Error', 'Invalid login response');
       }
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.detail || error.response?.data?.error || 'Login failed');
+      showCustomAlert('Error', error.response?.data?.detail || error.response?.data?.error || 'Login failed');
     } finally {
       setLoading(false);
     }

@@ -6,6 +6,7 @@ import { ThemeProvider as AppThemeProvider, useAppTheme } from '@/hooks/ThemeCon
 
 import { session, tripsAPI } from '@/services/api';
 import { scheduleMultipleTripNotifications, showLocalNotification, TripNotification } from '@/services/notifications';
+import { GlobalAlert, globalAlertRef } from '@/components/GlobalAlert';
 import { useEffect, useRef, useState } from 'react';
 
 export const unstable_settings = {
@@ -127,6 +128,7 @@ function RootLayoutContent() {
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      <GlobalAlert ref={globalAlertRef} />
     </>
   );
 }

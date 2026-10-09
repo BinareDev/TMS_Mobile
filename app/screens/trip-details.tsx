@@ -1,3 +1,4 @@
+import { showCustomAlert } from '@/components/GlobalAlert';
 import { session, tripsAPI } from '@/services/api';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -271,10 +272,10 @@ export default function TripDetailsScreen() {
       }
     } catch (error: any) {
       if (error.response?.status === 401) {
-        Alert.alert('Session Expired', 'Please log in again');
+        showCustomAlert('Session Expired', 'Please log in again');
         router.replace('/');
       } else {
-        Alert.alert('Error', 'Failed to load trip details');
+        showCustomAlert('Error', 'Failed to load trip details');
       }
     } finally {
       setLoading(false);
@@ -284,7 +285,7 @@ export default function TripDetailsScreen() {
   const handleAccept = async () => {
     try {
       if (String(tripId).startsWith('mock-')) {
-        Alert.alert('Success (Mock)', 'Mock trip accepted locally');
+        showCustomAlert('Success (Mock)', 'Mock trip accepted locally');
         setTrip((prev: any) => ({ ...prev, status: 'accepted' }));
         return;
       }
@@ -298,18 +299,18 @@ export default function TripDetailsScreen() {
       } else {
         await tripsAPI.acceptTrip(tripId as string, driverId);
       }
-      Alert.alert('Success', 'Trip accepted successfully');
+      showCustomAlert('Success', 'Trip accepted successfully');
       loadTripDetails();
     } catch (error) {
       loadTripDetails(); // Revert on failure
-      Alert.alert('Error', 'Failed to accept trip');
+      showCustomAlert('Error', 'Failed to accept trip');
     }
   };
 
   const handleReject = async () => {
     try {
       if (String(tripId).startsWith('mock-')) {
-        Alert.alert('Success (Mock)', 'Mock trip rejected locally');
+        showCustomAlert('Success (Mock)', 'Mock trip rejected locally');
         router.back();
         return;
       }
@@ -320,10 +321,10 @@ export default function TripDetailsScreen() {
         await tripsAPI.rejectTrip(tripId as string, driverId);
       }
       
-      Alert.alert('Success', 'Trip rejected');
+      showCustomAlert('Success', 'Trip rejected');
       router.back();
     } catch (error) {
-      Alert.alert('Error', 'Failed to reject trip');
+      showCustomAlert('Error', 'Failed to reject trip');
     }
   };
 

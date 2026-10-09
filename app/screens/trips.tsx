@@ -1,10 +1,11 @@
+import { showCustomAlert } from '@/components/GlobalAlert';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { activeSession, api, loadSession, session, tripsAPI } from '@/services/api';
 import { cancelAllTripNotifications, cancelTripNotifications, scheduleMultipleTripNotifications, showLocalNotification, TripNotification } from '@/services/notifications';
 import { FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Alert, FlatList, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 
@@ -77,13 +78,15 @@ export default function TripsScreen() {
 
 
 
-  useEffect(() => {
-    const init = async () => {
-      await loadSession();
-      loadTrips();
-    };
-    init();
-  }, [activeTab, selectedDate]);
+  useFocusEffect(
+    useCallback(() => {
+      const init = async () => {
+        await loadSession();
+        loadTrips();
+      };
+      init();
+    }, [activeTab, selectedDate])
+  );
 
   useEffect(() => {
     // Continuously check for trips starting right now
@@ -578,10 +581,10 @@ export default function TripsScreen() {
       await scheduleMultipleTripNotifications(notificationTrips);
     } catch (error: any) {
       if (error.response?.status === 401) {
-        Alert.alert('Session Expired', 'Please log in again');
+        showCustomAlert('Session Expired', 'Please log in again');
         router.replace('/');
       } else {
-        Alert.alert('Error', 'Failed to load trips');
+        showCustomAlert('Error', 'Failed to load trips');
       }
     } finally {
       setLoading(false);
@@ -593,7 +596,7 @@ export default function TripsScreen() {
   const submitReject = async () => {
     if (!rejectTripId) return;
     if (!rejectReason.trim()) {
-      Alert.alert('Required', 'Please enter a reason for rejecting the trip.');
+      showCustomAlert('Required', 'Please enter a reason for rejecting the trip.');
       return;
     }
 
@@ -605,17 +608,17 @@ export default function TripsScreen() {
       const isReturnLeg = String(rejectTripId).includes('-return');
 
       if (String(rejectTripId).startsWith('mock-')) {
-        Alert.alert('Success (Mock)', 'Mock trip rejected locally');
+        showCustomAlert('Success (Mock)', 'Mock trip rejected locally');
         setTrips(prev => prev.filter(t => t.id !== rejectTripId));
         return;
       }
 
       if (isReturnLeg) {
         await tripsAPI.rejectReturnTrip(originalId, rejectReason);
-        Alert.alert('Success', 'Return trip rejected');
+        showCustomAlert('Success', 'Return trip rejected');
       } else {
         await tripsAPI.rejectTrip(originalId, driverId, rejectReason);
-        Alert.alert('Success', 'Trip rejected');
+        showCustomAlert('Success', 'Trip rejected');
       }
 
       // if (Platform.OS === 'android' && isRunningInExpoGo()) {
@@ -626,7 +629,7 @@ export default function TripsScreen() {
 
       loadTrips();
     } catch (error) {
-      Alert.alert('Error', 'Failed to reject trip');
+      showCustomAlert('Error', 'Failed to reject trip');
     }
   };
 
@@ -646,7 +649,7 @@ export default function TripsScreen() {
       }
 
       if (String(tripId).startsWith('mock-')) {
-        Alert.alert('Success (Mock)', 'Mock trip completed locally');
+        showCustomAlert('Success (Mock)', 'Mock trip completed locally');
         setTrips(prev => prev.filter(t => t.id !== tripId));
         return;
       }
@@ -679,7 +682,7 @@ export default function TripsScreen() {
       }
 
       if (locationId === 0) {
-        Alert.alert('Error', 'Could not find active location tracking for this trip. The backend might have already deactivated it.');
+        showCustomAlert('Error', 'Could not find active location tracking for this trip. The backend might have already deactivated it.');
         return;
       }
 
@@ -690,7 +693,7 @@ export default function TripsScreen() {
       } catch (e) { }
       activeSession.location_id = null;
 
-      Alert.alert('Success', 'Trip completed successfully');
+      showCustomAlert('Success', 'Trip completed successfully');
 
       // if (Platform.OS === 'android' && isRunningInExpoGo()) {
       //   const trip = trips.find(t => t.id === tripId);
@@ -700,7 +703,7 @@ export default function TripsScreen() {
 
       loadTrips();
     } catch (error) {
-      Alert.alert('Error', 'Failed to complete trip');
+      showCustomAlert('Error', 'Failed to complete trip');
     }
   };
 

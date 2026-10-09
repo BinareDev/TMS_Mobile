@@ -1,3 +1,4 @@
+import { showCustomAlert } from '@/components/GlobalAlert';
 import { activeSession, api, session, tripsAPI } from '@/services/api';
 import { FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -373,7 +374,7 @@ export default function LiveMapScreen() {
       setIsSimulating(false);
     } else {
       if (routeCoordinates.length === 0) {
-        Alert.alert("No Route", "Please wait for the route to load before simulating.");
+        showCustomAlert("No Route", "Please wait for the route to load before simulating.");
         return;
       }
 
@@ -394,7 +395,7 @@ export default function LiveMapScreen() {
             }
           } else {
             // Location doesn't exist, they actually need to start the trip
-            Alert.alert(
+            showCustomAlert(
               "Location Session Missing",
               "The car will move on screen, but it won't save to the database because no trip has been 'Started' to create a location record. Go back to Dashboard and click 'Start Trip' first!"
             );
@@ -514,7 +515,7 @@ export default function LiveMapScreen() {
       }
 
       if (String(tripId).startsWith('mock-')) {
-        Alert.alert('Success (Mock)', 'Mock trip completed locally');
+        showCustomAlert('Success (Mock)', 'Mock trip completed locally');
         router.replace('/(tabs)/dashboard');
         return;
       }
@@ -541,7 +542,7 @@ export default function LiveMapScreen() {
       }
 
       if (locationId === 0) {
-        Alert.alert('Error', 'Could not find active location tracking for this trip.');
+        showCustomAlert('Error', 'Could not find active location tracking for this trip.');
         return;
       }
 
@@ -553,10 +554,10 @@ export default function LiveMapScreen() {
       } catch (e) { }
       activeSession.location_id = null;
 
-      Alert.alert('Success', 'Trip completed successfully');
+      showCustomAlert('Success', 'Trip completed successfully');
       router.replace('/(tabs)/dashboard');
     } catch (error) {
-      Alert.alert('Error', 'Failed to complete trip');
+      showCustomAlert('Error', 'Failed to complete trip');
     }
   };
 

@@ -1,3 +1,4 @@
+import { showCustomAlert } from '@/components/GlobalAlert';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { brand, surface } from '@/constants/design';
 import { activeSession, api, session, tripsAPI, clearSession } from '@/services/api';
@@ -341,7 +342,7 @@ export default function Dashboard() {
   const submitReject = async () => {
     if (!rejectTripId) return;
     if (!rejectReason.trim()) {
-      Alert.alert('Required', 'Please enter a reason for rejecting the trip.');
+      showCustomAlert('Required', 'Please enter a reason for rejecting the trip.');
       return;
     }
 
@@ -353,11 +354,11 @@ export default function Dashboard() {
       } else {
         await tripsAPI.rejectTrip(rejectTripId, driverId, rejectReason);
       }
-      Alert.alert('Declined', 'Trip Declined.');
+      showCustomAlert('Declined', 'Trip Declined.');
       setUrgentTrip(null);
       Vibration.cancel();
     } catch (error) {
-      Alert.alert('Error', 'Failed to reject trip.');
+      showCustomAlert('Error', 'Failed to reject trip.');
     }
   };
 
@@ -370,14 +371,14 @@ export default function Dashboard() {
         } else {
           await tripsAPI.acceptTrip(urgentTrip.id, driverId);
         }
-        Alert.alert('Success', 'Trip Accepted!');
+        showCustomAlert('Success', 'Trip Accepted!');
         setUrgentTrip(null);
         Vibration.cancel();
       } else {
         promptReject(urgentTrip.id, urgentTrip.urgentLeg);
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to update trip status.');
+      showCustomAlert('Error', 'Failed to update trip status.');
     }
   };
 
@@ -386,7 +387,7 @@ export default function Dashboard() {
       // Request location permission
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Location permission is required to start trip.');
+        showCustomAlert('Permission denied', 'Location permission is required to start trip.');
         return;
       }
 
@@ -451,7 +452,7 @@ export default function Dashboard() {
         console.warn("acceptTrip failed, it might already be accepted.", acceptErr);
       }
 
-      Alert.alert('Success', 'Trip Started!');
+      showCustomAlert('Success', 'Trip Started!');
       if (tripToStartNow) {
         const leg = tripToStartNow.startingLeg || (tripToStartNow.one_way_is_active !== false ? 'outbound' : 'return');
         dismissTripStart(`${tripId}-${leg}`);
@@ -464,7 +465,7 @@ export default function Dashboard() {
     } catch (e: any) {
       console.error("Start Trip Error: ", e);
       const errorMessage = e?.response?.data?.detail || e?.message || JSON.stringify(e);
-      Alert.alert('Error', `Failed to start trip: ${errorMessage}`);
+      showCustomAlert('Error', `Failed to start trip: ${errorMessage}`);
     }
   };
 

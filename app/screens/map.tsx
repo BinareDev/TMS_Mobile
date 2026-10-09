@@ -1,3 +1,4 @@
+import { showCustomAlert } from '@/components/GlobalAlert';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, PermissionsAndroid, Platform } from 'react-native';
 import { useState, useEffect } from 'react';
 import MapView, { Marker, Polyline } from 'react-native-maps';
@@ -78,7 +79,7 @@ export default function MapScreen() {
         longitudeDelta: 0.0421,
       });
     } catch (error) {
-      Alert.alert('Error', 'Could not get current location');
+      showCustomAlert('Error', 'Could not get current location');
     }
   };
 
