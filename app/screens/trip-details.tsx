@@ -173,6 +173,8 @@ export default function TripDetailsScreen() {
           id: ts.id,
           passenger_name: passengerName,
           passenger_phone: passengerPhone,
+          company_name: ts.company_name,
+          company_phone: ts.company?.phone_number || ts.company?.phone || ts.company?.contact_number || ts.company_phone || passengerPhone,
           passengers: passengerList,
           pickup_location: ts.starting_point || 'Unknown Start',
           pickup_lat: ts.starting_lat,
@@ -346,9 +348,9 @@ export default function TripDetailsScreen() {
   return (
     <View style={{ flex: 1 }}>
       <ScrollView style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: 40 }]}>
           <TouchableOpacity onPress={() => router.back()}>
-            <FontAwesome5 name="arrow-left" size={24} color="#111827" />
+            <FontAwesome5 name="arrow-left" size={24} color="#f8fafc" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Trip Details</Text>
           <View style={{ width: 24 }} />
@@ -357,11 +359,11 @@ export default function TripDetailsScreen() {
         <View style={styles.card}>
           <View style={styles.passengerInfo}>
             <View style={styles.avatar}>
-              <FontAwesome5 name="user" size={32} color="#6366f1" />
+              <FontAwesome5 name="building" size={28} color="#6366f1" />
             </View>
             <View style={styles.passengerDetails}>
-              <Text style={styles.newPassengerName}>{trip.passenger_name}</Text>
-              <Text style={styles.newPassengerPhone}>{trip.passenger_phone}</Text>
+              <Text style={styles.newPassengerName}>{trip.company_name || 'No Company Details'}</Text>
+              <Text style={styles.newPassengerPhone}>{trip.company_phone || 'No Phone Details'}</Text>
             </View>
           </View>
 

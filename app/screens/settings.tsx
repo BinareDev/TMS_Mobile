@@ -15,7 +15,7 @@ export default function SettingsScreen() {
     name: 'Active Driver',
     contact_number: '+1 (555) 0199',
     role: 'Professional Driver',
-    email: 'driver@tms.com',
+    email: 'driver@dritra.com',
     agency_id: '6e7cdb44-603c-46c4-a4ca-198334c34314',
   };
 

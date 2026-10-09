@@ -3,7 +3,7 @@ import { initializePushNotifications, setupNotificationListeners, showLocalNotif
 import { FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View, KeyboardAvoidingView, ScrollView, Platform, Image } from 'react-native';
 
 export default function LoginScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -111,14 +111,21 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.logoContainer}>
-        <View style={styles.logoBackground}>
-          <FontAwesome5 name="taxi" size={32} color="#38bdf8" />
-        </View>
-        <Text style={styles.logoTitle}>TMS Mobile</Text>
-        <Text style={styles.logoSubtitle}>Secure Login for Drivers</Text>
-      </View>
+    <KeyboardAvoidingView 
+      style={{ flex: 1, backgroundColor: '#0b0f19' }} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }} keyboardShouldPersistTaps="handled">
+        <View style={styles.container}>
+          <View style={styles.logoContainer}>
+            <Image 
+              source={require('../assets/images/Dritra_Play_Store_Icon_512x512.png')} 
+              style={{ width: 80, height: 80, borderRadius: 16, marginBottom: 16 }}
+              resizeMode="contain"
+            />
+            <Text style={styles.logoTitle}>Dritra</Text>
+            <Text style={styles.logoSubtitle}>Secure Login for Drivers</Text>
+          </View>
 
       {/* Agency Dropdown */}
       <Text style={styles.label}>Agency *</Text>
@@ -190,8 +197,10 @@ export default function LoginScreen() {
         </View>
       </Modal>
 
-      <Text style={styles.footer}>© 2026 Travel Management System</Text>
+      <Text style={styles.footer}>© 2026 Dritra</Text>
     </View>
+    </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 const styles = StyleSheet.create({

@@ -176,7 +176,7 @@ export const tripsAPI = {
     return response.data;
   },
 
-  // Call the real API on the TMS backend
+  // Call the real API on the Dritra backend
   getDriverDetails: async (driverId: string | number) => {
     try {
       const response = await api.get(`drivers/mobile/driver-details/${driverId}`);
@@ -189,7 +189,7 @@ export const tripsAPI = {
         name: session.user?.name || 'Active Driver',
         contact_number: session.user?.contact_number || '+1 (555) 0199',
         role: session.user?.role || 'Professional Driver',
-        email: session.user?.email || 'driver@tms.com',
+        email: session.user?.email || 'driver@dritra.com',
         agency_id: session.user?.agency_id || '6e7cdb44-603c-46c4-a4ca-198334c34314'
       };
     }
