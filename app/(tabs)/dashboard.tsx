@@ -1,6 +1,6 @@
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { brand, surface } from '@/constants/design';
-import { activeSession, api, session, tripsAPI } from '@/services/api';
+import { activeSession, api, session, tripsAPI, clearSession } from '@/services/api';
 import { FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -703,7 +703,10 @@ export default function Dashboard() {
       {/* Terminate Session Action */}
       <TouchableOpacity
         style={[styles.logoutRow, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.08)' : 'rgba(239, 68, 68, 0.04)', borderColor: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.12)' }]}
-        onPress={() => router.replace('/')}
+        onPress={async () => {
+          await clearSession();
+          router.replace('/');
+        }}
       >
         <FontAwesome5 name="sign-out-alt" size={14} color="#ef4444" />
         <Text style={styles.logoutText}>Terminate Active Session</Text>

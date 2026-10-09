@@ -850,17 +850,6 @@ export default function TripsScreen() {
           </TouchableOpacity>
         )}
 
-        {item.status === 'accepted' && activeTab === 'current' && item.is_active !== false && item.is_started === true && (
-          <>
-            <TouchableOpacity
-              style={styles.completeButton}
-              onPress={() => handleComplete(item.id)}
-            >
-              <Text style={styles.actionButtonText}>Complete Trip</Text>
-            </TouchableOpacity>
-          </>
-        )}
-
         <View style={{ flexDirection: 'row', gap: 12, marginTop: 15 }}>
           <TouchableOpacity
             style={styles.secondaryDetailsButton}

@@ -96,14 +96,19 @@ export const authAPI = {
 
 export const tripsAPI = {
   getTrips: async (status?: string, driverId?: string, agencyId?: string) => {
+    const headers = {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    };
     if (agencyId && driverId) {
-      const response = await api.get(`/trips/agency/${agencyId}/driver/${driverId}`);
+      const response = await api.get(`/trips/agency/${agencyId}/driver/${driverId}`, { headers });
       return response.data;
     }
     const params: any = {};
     if (status) params.status = status;
     if (driverId) params.driver_id = driverId;
-    const response = await api.get('/trips', { params });
+    const response = await api.get('/trips', { params, headers });
     return response.data;
   },
   getTripHistory: async (agencyId: string, driverId: string) => {
