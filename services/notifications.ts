@@ -418,6 +418,22 @@ export const cancelTripNotifications = async (tripId: string | number) => {
   }
 };
 
+// Cancel ALL local trip notifications (used before rescheduling to clear removed/reassigned trips)
+export const cancelAllTripNotifications = async () => {
+  if (Platform.OS === 'android') {
+    try {
+      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+      for (const notification of scheduled) {
+        if (notification.identifier.startsWith('trip-')) {
+          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+        }
+      }
+    } catch (e) {
+      console.error('Error cancelling all trip notifications:', e);
+    }
+  }
+};
+
 // Schedule local notifications for multiple trips
 export const scheduleMultipleTripNotifications = async (trips: TripNotification[]) => {
   console.log(`Scheduling local reminders for ${trips.length} trips...`);

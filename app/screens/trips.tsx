@@ -1,6 +1,6 @@
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { activeSession, api, loadSession, session, tripsAPI } from '@/services/api';
-import { cancelTripNotifications, scheduleMultipleTripNotifications, showLocalNotification, TripNotification } from '@/services/notifications';
+import { cancelAllTripNotifications, cancelTripNotifications, scheduleMultipleTripNotifications, showLocalNotification, TripNotification } from '@/services/notifications';
 import { FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
@@ -571,10 +571,8 @@ export default function TripsScreen() {
         }
       });
 
-      // Cancel old reminders first (avoid duplicates)
-      for (const trip of notificationTrips) {
-        await cancelTripNotifications(trip.tripId);
-      }
+      // Cancel ALL old reminders first (avoid duplicates and ghost notifications for reassigned trips)
+      await cancelAllTripNotifications();
 
       // Schedule new reminders
       await scheduleMultipleTripNotifications(notificationTrips);
