@@ -4,9 +4,11 @@ import { activeSession, api, loadSession, session, tripsAPI } from '@/services/a
 import { cancelAllTripNotifications, cancelTripNotifications, scheduleMultipleTripNotifications, showLocalNotification, TripNotification } from '@/services/notifications';
 import { FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useEffect, useState, useCallback } from 'react';
 import { Alert, FlatList, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, DateData } from 'react-native-calendars';
 
 
@@ -42,6 +44,8 @@ interface Trip {
   two_way_isActive?: boolean;
   one_way_isActive?: boolean;
   driver_response_two_way?: string;
+  route_point?: any;
+  company_id?: string | number;
 }
 
 export default function TripsScreen() {
@@ -134,7 +138,7 @@ export default function TripsScreen() {
     try {
       setLoading(true);
       const data = await tripsAPI.getTrips(undefined, driverId, agencyId);
-      
+
       let historyData: any[] = [];
       try {
         historyData = await tripsAPI.getTripHistory(agencyId, driverId);
@@ -220,6 +224,8 @@ export default function TripsScreen() {
           source: 'postgres',
           start_date: ts.start_date,
           end_date: ts.end_date,
+          route_point: ts.route_point,
+          company_id: ts.company_id,
         };
 
         // Completed status now explicitly checks driver_response === 'completed' as per user request
@@ -308,7 +314,7 @@ export default function TripsScreen() {
       historyData.forEach((h: any) => {
         const ts = h.trip_schedule;
         if (!ts) return;
-        
+
         let passengerName = ts.company_name ? `Company: ${ts.company_name}` : 'No passengers';
         let passengerPhone = 'N/A';
         if (ts.route_point) {
@@ -320,9 +326,9 @@ export default function TripsScreen() {
               if (names.length > 0) passengerName = names.join(', ');
               if (phones.length > 0) passengerPhone = phones.join(', ');
             }
-          } catch (e) {}
+          } catch (e) { }
         }
-        
+
         const historyTrip: Trip = {
           id: h.id, // unique history ID
           original_id: ts.id,
@@ -343,14 +349,14 @@ export default function TripsScreen() {
           end_date: h.execution_date,
           status: String(h.action || '').toLowerCase(), // 'completed' or 'rejected'
           is_active: false,
-          start_time: (h.execution_date && (h.leg === 'return' ? ts.two_way_start_time : ts.one_way_start_time)) 
-                        ? `${h.execution_date}T${h.leg === 'return' ? ts.two_way_start_time : ts.one_way_start_time}` 
-                        : undefined,
+          start_time: (h.execution_date && (h.leg === 'return' ? ts.two_way_start_time : ts.one_way_start_time))
+            ? `${h.execution_date}T${h.leg === 'return' ? ts.two_way_start_time : ts.one_way_start_time}`
+            : undefined,
           leg: h.leg,
         };
         historyFormattedTrips.push(historyTrip);
       });
-      
+
       const allTrips = [...formattedDbTrips, ...historyFormattedTrips];
 
       // Filter trips for tabs based on leg properties
@@ -398,26 +404,26 @@ export default function TripsScreen() {
           if (!trip.start_date) return false;
           const selected = new Date(selectedDate);
           selected.setHours(0, 0, 0, 0);
-          
+
           const [sYear, sMonth, sDay] = trip.start_date.split('-').map(Number);
           const sDate = new Date(sYear, sMonth - 1, sDay);
           sDate.setHours(0, 0, 0, 0);
-          
+
           let eDate = sDate;
           if (trip.end_date) {
             const [eYear, eMonth, eDay] = trip.end_date.split('-').map(Number);
             eDate = new Date(eYear, eMonth - 1, eDay);
             eDate.setHours(0, 0, 0, 0);
           }
-          
+
           return selected.getTime() >= sDate.getTime() && selected.getTime() <= eDate.getTime();
         };
 
         if (activeTab === 'rejected') {
           if (!isDateMatching(t)) return false;
-          
+
           if (t.source === 'history') return t.status === 'rejected';
-          
+
           // Fallback for old trips without history records
           const hasHistory = historyFormattedTrips.some(h =>
             h.original_id === t.original_id &&
@@ -430,9 +436,9 @@ export default function TripsScreen() {
 
         if (activeTab === 'completed') {
           if (!isDateMatching(t)) return false;
-          
+
           if (t.source === 'history') return t.status === 'completed';
-          
+
           // Fallback for old trips without history records
           const hasHistory = historyFormattedTrips.some(h =>
             h.original_id === t.original_id &&
@@ -445,7 +451,7 @@ export default function TripsScreen() {
 
         if (activeTab === 'current') {
           if (t.source === 'history') return false; // History doesn't show in current tab
-          
+
           // If there is ANY history for TODAY for this trip, hide it from the current tab!
           const hasHistoryForToday = historyFormattedTrips.some(h => {
             if (!h.start_date) return false;
@@ -491,7 +497,7 @@ export default function TripsScreen() {
             }
             return false;
           }
-          
+
           // For active trips, if we already have a history record for this exact date, hide it!
           const hasHistoryForDate = historyFormattedTrips.some(h => {
             if (!h.start_date) return false;
@@ -633,7 +639,91 @@ export default function TripsScreen() {
     }
   };
 
+  const handleStartTrip = async (item: Trip) => {
+    const tripId = item.original_id ? item.original_id.toString() : item.id.toString();
+    const leg = item.leg || 'outbound';
 
+    try {
+      // Request location permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        showCustomAlert('Permission denied', 'Location permission is required to start trip.');
+        return;
+      }
+
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude, accuracy, speed } = location.coords;
+
+      // Build location data, only including accuracy/speed if they exist
+      const locationData: any = {
+        driver_id: driverId,
+        trip_id: tripId,
+        agency_id: agencyId,
+        latitude,
+        longitude,
+        company_id: item.company_id || session.user?.company_id,
+        start_date: item.start_date,
+        end_date: item.end_date || item.start_date,
+      };
+      if (accuracy !== null) locationData.accuracy = accuracy;
+      if (speed !== null) locationData.speed = speed;
+
+      // Call location API to create location record
+      const locationResponse = await tripsAPI.startLocationTracking(locationData);
+
+      if (locationResponse && locationResponse.location_id) {
+        activeSession.location_id = locationResponse.location_id;
+        try {
+          await AsyncStorage.setItem('active_location_id', locationResponse.location_id.toString());
+        } catch (storageErr) {
+          console.warn("AsyncStorage not available, skipping local save.", storageErr);
+        }
+
+        // Sync initial route points to driver_location table immediately
+        if (item.route_point) {
+          try {
+            const parsedPoints = typeof item.route_point === 'string' ? JSON.parse(item.route_point) : item.route_point;
+            if (Array.isArray(parsedPoints) && parsedPoints.length > 0) {
+              await tripsAPI.updateLocationRoutePoints({
+                trip_id: tripId,
+                location_id: locationResponse.location_id,
+                driver_id: driverId,
+                agency_id: agencyId,
+                route_point: parsedPoints,
+              });
+              console.log("Successfully synced initial route points to driver_location table");
+            }
+          } catch (e) {
+            console.warn("Failed to sync initial route points", e);
+          }
+        }
+      }
+
+      // Accept the trip (if it's not already accepted)
+      try {
+        await tripsAPI.acceptTrip(tripId, driverId);
+      } catch (acceptErr) {
+        console.warn("acceptTrip failed, it might already be accepted.", acceptErr);
+      }
+
+      showCustomAlert('Success', 'Trip Started!');
+      router.push({
+        pathname: '/screens/live-map',
+        params: {
+          tripId: tripId,
+          leg: leg,
+          status: item.status,
+        },
+      });
+
+      loadTrips();
+    } catch (e: any) {
+      console.error("Start Trip Error: ", e);
+      const errorMessage = e?.response?.data?.detail || e?.message || JSON.stringify(e);
+      showCustomAlert('Error', `Failed to start trip: ${errorMessage}`);
+    }
+  };
 
   const handleComplete = async (tripId: string | number) => {
     try {
@@ -754,7 +844,7 @@ export default function TripsScreen() {
 
     return (
       <View style={[
-        styles.card, 
+        styles.card,
         { backgroundColor: colors.card, borderColor: colors.border },
         isCurrentlyRunning && styles.activeTripCard
       ]}>
@@ -852,17 +942,7 @@ export default function TripsScreen() {
           {shouldShowStartButton && (
             <TouchableOpacity
               style={styles.startTripButtonRow}
-              onPress={() => {
-                // Navigate to live map to start the trip
-                router.push({
-                  pathname: '/screens/live-map',
-                  params: {
-                    tripId: item.original_id ? item.original_id.toString() : item.id.toString(),
-                    leg: item.leg || 'outbound',
-                    status: item.status
-                  }
-                });
-              }}
+              onPress={() => handleStartTrip(item)}
             >
               <FontAwesome5 name="play" size={14} color="#ffffff" style={{ marginRight: 8 }} />
               <Text style={styles.startTripButtonText}>Start Trip</Text>
@@ -900,7 +980,7 @@ export default function TripsScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header bar */}
       <View style={styles.headerBar}>
         {router.canGoBack() && (
@@ -1104,7 +1184,7 @@ export default function TripsScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAppTheme } from '@/hooks/ThemeContext';
@@ -44,7 +45,8 @@ export default function DriverDetailsScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={{ flex: 1 }}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header bar */}
       <View style={styles.headerBar}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -125,6 +127,7 @@ export default function DriverDetailsScreen() {
         </ScrollView>
       ) : null}
     </View>
+    </SafeAreaView>
   );
 }
 

@@ -8,6 +8,7 @@ import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Alert, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, Vibration, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function Dashboard() {
   const [availableCount, setAvailableCount] = useState<number | string>('-');
@@ -470,7 +471,9 @@ export default function Dashboard() {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+    <>
+      <SafeAreaView style={{ flex: 1 }}>
+        <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Profile Header */}
       <View style={[styles.profileHeader, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={[styles.profileAvatar, { backgroundColor: colors.accentLight, borderColor: colors.accent }]}>
@@ -486,89 +489,6 @@ export default function Dashboard() {
           <Text style={styles.statusPillText}>ON DUTY</Text>
         </View>
       </View>
-
-      {urgentTrip && (
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={!!urgentTrip}
-          onRequestClose={() => setUrgentTrip(null)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.danger, borderWidth: 2 }]}>
-              <View style={{ alignItems: 'center', marginBottom: 15 }}>
-                <FontAwesome5 name="exclamation-circle" size={40} color={colors.danger} />
-                <Text style={{ fontSize: 20, fontWeight: '800', color: colors.danger, marginTop: 10, textAlign: 'center' }}>URGENT: TRIP STARTING SOON</Text>
-              </View>
-
-              <Text style={{ fontSize: 16, color: colors.textSecondary, textAlign: 'center', marginBottom: 20 }}>
-                Trip for <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{urgentTrip.passenger_name || urgentTrip.company_name}</Text> at <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{urgentTrip.starting_point}</Text> starts in less than 5 minutes!
-              </Text>
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: colors.danger, marginRight: 10 }]}
-                  onPress={() => handleUrgentAction('decline')}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>DECLINE</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: colors.success }]}
-                  onPress={() => handleUrgentAction('accept')}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>ACCEPT TRIP</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
-
-      {tripToStartNow && !urgentTrip && (
-        <Modal
-          animationType="fade"
-          transparent={true}
-          visible={!!tripToStartNow && !urgentTrip}
-          onRequestClose={() => setTripToStartNow(null)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-              <View style={{ alignItems: 'center', marginBottom: 20 }}>
-                <FontAwesome5 name="car-side" size={40} color={colors.accent} />
-                <Text style={{ fontSize: 24, fontWeight: '800', color: colors.textPrimary, marginTop: 10 }}>Start Trip</Text>
-              </View>
-
-              <Text style={{ fontSize: 16, color: colors.textSecondary, textAlign: 'center', marginBottom: 20 }}>
-                It&apos;s time to start the trip for <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{tripToStartNow.passenger_name || tripToStartNow.company_name}</Text> at <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{tripToStartNow.starting_point}</Text>.
-              </Text>
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={[styles.modalButton, styles.modalCancelButton, { borderColor: colors.border }]}
-                  onPress={() => {
-                    if (tripToStartNow) {
-                      const leg = tripToStartNow.startingLeg || (tripToStartNow.one_way_is_active !== false ? 'outbound' : 'return');
-                      dismissTripStart(`${tripToStartNow.id}-${leg}`);
-                    }
-                    setTripToStartNow(null);
-                  }}
-                >
-                  <Text style={[styles.modalCancelText, { color: colors.textPrimary }]}>Close</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.modalButton, { backgroundColor: colors.accent }]}
-                  onPress={() => handleStartTrip(tripToStartNow.id)}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Start Trip</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
-
 
       {/* Live Telemetry Widget */}
       {/* <View style={[styles.liveCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -782,6 +702,131 @@ export default function Dashboard() {
         </View>
       </Modal>
     </ScrollView>
+    </SafeAreaView>
+
+    {urgentTrip && (
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={!!urgentTrip}
+        onRequestClose={() => setUrgentTrip(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.danger, borderWidth: 2 }]}>
+            <View style={{ alignItems: 'center', marginBottom: 15 }}>
+              <FontAwesome5 name="exclamation-circle" size={40} color={colors.danger} />
+              <Text style={{ fontSize: 20, fontWeight: '800', color: colors.danger, marginTop: 10, textAlign: 'center' }}>URGENT: TRIP STARTING SOON</Text>
+            </View>
+
+            <Text style={{ fontSize: 16, color: colors.textSecondary, textAlign: 'center', marginBottom: 20 }}>
+              Trip for <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{urgentTrip.passenger_name || urgentTrip.company_name}</Text> at <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{urgentTrip.starting_point}</Text> starts in less than 5 minutes!
+            </Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: colors.danger, marginRight: 10 }]}
+                onPress={() => handleUrgentAction('decline')}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>DECLINE</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: colors.success }]}
+                onPress={() => handleUrgentAction('accept')}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>ACCEPT TRIP</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    )}
+
+    {tripToStartNow && !urgentTrip && (
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={!!tripToStartNow && !urgentTrip}
+        onRequestClose={() => setTripToStartNow(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={{ alignItems: 'center', marginBottom: 20 }}>
+              <FontAwesome5 name="car-side" size={40} color={colors.accent} />
+              <Text style={{ fontSize: 24, fontWeight: '800', color: colors.textPrimary, marginTop: 10 }}>Start Trip</Text>
+            </View>
+
+            <Text style={{ fontSize: 16, color: colors.textSecondary, textAlign: 'center', marginBottom: 20 }}>
+              It&apos;s time to start the trip for <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{tripToStartNow.passenger_name || tripToStartNow.company_name}</Text> at <Text style={{ fontWeight: '700', color: colors.textPrimary }}>{tripToStartNow.starting_point}</Text>.
+            </Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalCancelButton, { borderColor: colors.border }]}
+                onPress={() => {
+                  if (tripToStartNow) {
+                    const leg = tripToStartNow.startingLeg || (tripToStartNow.one_way_is_active !== false ? 'outbound' : 'return');
+                    dismissTripStart(`${tripToStartNow.id}-${leg}`);
+                  }
+                  setTripToStartNow(null);
+                }}
+              >
+                <Text style={[styles.modalCancelText, { color: colors.textPrimary }]}>Close</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: colors.accent }]}
+                onPress={() => handleStartTrip(tripToStartNow.id)}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Start Trip</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    )}
+
+    {/* Reject Reason Modal */}
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={rejectModalVisible}
+      onRequestClose={() => setRejectModalVisible(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+          <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Reject Trip</Text>
+          <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>Please provide a reason for rejecting this trip.</Text>
+
+          <TextInput
+            style={[styles.modalInput, { color: colors.textPrimary, borderColor: colors.border }]}
+            placeholder="e.g., Too far, Vehicle issue..."
+            placeholderTextColor="#94a3b8"
+            value={rejectReason}
+            onChangeText={setRejectReason}
+            multiline
+            numberOfLines={3}
+          />
+
+          <View style={styles.modalButtons}>
+            <TouchableOpacity
+              style={[styles.modalButton, styles.modalCancelButton, { borderColor: colors.border }]}
+              onPress={() => setRejectModalVisible(false)}
+            >
+              <Text style={[styles.modalCancelText, { color: colors.textPrimary }]}>Cancel</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modalButton, styles.modalSubmitButton]}
+              onPress={submitReject}
+            >
+              <Text style={styles.modalSubmitText}>Submit Reject</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 

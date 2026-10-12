@@ -1,4 +1,5 @@
 import { View, Text, FlatList, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const users = [
   { id: '1', name: 'Ravi', role: 'Admin' },
@@ -8,7 +9,7 @@ const users = [
 
 export default function Users() {
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Text style={styles.header}>Users</Text>
 
       <FlatList
@@ -23,7 +24,7 @@ export default function Users() {
           </View>
         )}
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

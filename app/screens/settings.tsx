@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Linking } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAppTheme } from '@/hooks/ThemeContext';
@@ -53,7 +54,8 @@ export default function SettingsScreen() {
   ];
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={{ flex: 1 }}>
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header bar */}
       <View style={styles.headerBar}>
         {router.canGoBack() && (
@@ -186,6 +188,7 @@ export default function SettingsScreen() {
         </View>
       </View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 

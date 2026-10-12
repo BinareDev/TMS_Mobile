@@ -6,6 +6,7 @@ import * as Location from 'expo-location';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Dimensions, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, {
   Marker,
   Polyline,
@@ -35,6 +36,17 @@ export default function LiveMapScreen() {
 
   const driverId = session.user?.id || 'cf6912d9-6617-482b-aacf-dd034c780185';
   const agencyId = session.user?.agency_id || '6e7cdb44-603c-46c4-a4ca-198334c34314';
+
+  // Check if all passengers have been picked up
+  const allPassengersPickedUp = () => {
+    if (!passengers || passengers.length === 0) return false;
+    return passengers.every(p => p.pickup === true);
+  };
+
+  // Check if trip is accepted
+  const isTripAccepted = () => {
+    return trip?.status === 'accepted' || paramStatus === 'accepted';
+  };
 
   useEffect(() => {
     loadTripDetails();
@@ -570,7 +582,7 @@ export default function LiveMapScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       <MapView
         ref={mapRef}
@@ -741,7 +753,7 @@ export default function LiveMapScreen() {
                 <FontAwesome5 name="arrow-down" size={10} color="#64748b" style={{ marginVertical: 4 }} />
                 <Text style={styles.locationText} numberOfLines={1}>{trip.dropoff_location}</Text>
 
-                {trip?.status !== 'completed' && (
+                {trip?.status !== 'completed' && isTripAccepted() && (passengers.length === 0 || allPassengersPickedUp()) && (
                   <TouchableOpacity
                     style={styles.completeTripBtn}
                     onPress={handleComplete}
@@ -928,7 +940,7 @@ export default function LiveMapScreen() {
           </View>
         </Modal>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

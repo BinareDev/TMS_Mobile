@@ -4,6 +4,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, LayoutAnimation, Linking } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 
 export default function TripDetailsScreen() {
@@ -370,8 +371,9 @@ export default function TripDetailsScreen() {
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <ScrollView style={styles.container}>
+    <>
+      <SafeAreaView style={{ flex: 1 }}>
+        <ScrollView style={styles.container}>
         <View style={[styles.header, { paddingTop: 40 }]}>
           <TouchableOpacity onPress={() => router.back()}>
             <FontAwesome5 name="arrow-left" size={24} color="#f8fafc" />
@@ -639,6 +641,7 @@ export default function TripDetailsScreen() {
         </View>
       )}
     </ScrollView>
+    </SafeAreaView>
 
     {/* Map Modal */}
     {showMapModal && (
@@ -726,9 +729,7 @@ export default function TripDetailsScreen() {
         </View>
       </Modal>
     )}
-
-
-    </View>
+    </>
   );
 }
 
