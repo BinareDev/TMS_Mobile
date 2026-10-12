@@ -694,7 +694,8 @@ export default function LiveMapScreen() {
           <Text style={styles.headerSubtitle}>{leg === 'return' ? 'Return Leg' : 'Outbound Leg'}</Text>
         </View>
 
-        {trip?.status !== 'completed' && (
+        {/* Commented out simulate button per user request */}
+        {/* {trip?.status !== 'completed' && (
           <TouchableOpacity
             style={[styles.simulateButton, { backgroundColor: isSimulating ? '#ef4444' : '#10b981' }]}
             onPress={toggleSimulation}
@@ -702,7 +703,7 @@ export default function LiveMapScreen() {
             <FontAwesome5 name={isSimulating ? "stop" : "play"} size={14} color="#fff" />
             <Text style={styles.simulateButtonText}>{isSimulating ? "Stop" : "Simulate"}</Text>
           </TouchableOpacity>
-        )}
+        )} */}
 
         <TouchableOpacity style={styles.centerButton} onPress={centerOnAll}>
           <FontAwesome5 name="crosshairs" size={20} color="#f8fafc" />

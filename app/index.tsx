@@ -13,6 +13,7 @@ export default function LoginScreen() {
   const [agencies, setAgencies] = useState<{ id: string; agency_name: string }[]>([]);
   const [selectedAgency, setSelectedAgency] = useState<{ id: string; agency_name: string } | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [agenciesLoading, setAgenciesLoading] = useState(true);
 
   useEffect(() => {
     checkExistingSession();
@@ -31,6 +32,7 @@ export default function LoginScreen() {
   };
 
   const fetchAgencies = async () => {
+    setAgenciesLoading(true);
     try {
 
       const data = await authAPI.getAgencies();
@@ -51,6 +53,8 @@ export default function LoginScreen() {
       setAgencies([{ id: '1', agency_name: 'Test Agency' }]);
       setSelectedAgency({ id: '1', agency_name: 'Test Agency' });
 
+    } finally {
+      setAgenciesLoading(false);
     }
   };
 
@@ -133,12 +137,18 @@ export default function LoginScreen() {
       <TouchableOpacity
         style={styles.inputContainer}
         onPress={() => setShowDropdown(true)}
+        disabled={agenciesLoading}
       >
         <FontAwesome5 name="building" size={16} color="#64748b" style={styles.inputIcon} />
-        <Text style={styles.dropdownValueText}>
-          {selectedAgency ? selectedAgency.agency_name : 'Select Agency'}
-        </Text>
-        <FontAwesome5 name="chevron-down" size={14} color="#64748b" style={{ marginRight: 16 }} />
+        {agenciesLoading ? (
+          <Text style={styles.dropdownValueText}>Loading agencies...</Text>
+        ) : (
+          <Text style={styles.dropdownValueText}>
+            {selectedAgency ? selectedAgency.agency_name : 'Select Agency'}
+          </Text>
+        )}
+        {!agenciesLoading && <FontAwesome5 name="chevron-down" size={14} color="#64748b" style={{ marginRight: 16 }} />}
+        {agenciesLoading && <FontAwesome5 name="spinner" size={14} color="#6366f1" style={{ marginRight: 16 }} spin />}
       </TouchableOpacity>
 
       <Text style={styles.label}>Phone Number / Email *</Text>

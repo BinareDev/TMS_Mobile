@@ -626,6 +626,34 @@ export default function Dashboard() {
         </TouchableOpacity>
       </View>
 
+      {/* Active Running Trip Card */}
+      {currentTrip && (
+        <View style={[styles.activeTripCard, { backgroundColor: colors.card, borderColor: colors.success, borderWidth: 2 }]}>
+          <View style={styles.activeTripHeader}>
+            <View style={[styles.activeTripBadge, { backgroundColor: colors.successLight }]}>
+              <FontAwesome5 name="car-side" size={16} color={colors.success} />
+              <Text style={[styles.activeTripBadgeText, { color: colors.success }]}>ACTIVE TRIP</Text>
+            </View>
+          </View>
+          <View style={styles.activeTripContent}>
+            <Text style={[styles.activeTripName, { color: colors.textPrimary }]}>{currentTrip.passenger_name || currentTrip.company_name}</Text>
+            <Text style={[styles.activeTripRoute, { color: colors.textSecondary }]}>
+              {currentTrip.starting_point} → {currentTrip.end_point}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.activeTripButton, { backgroundColor: colors.success }]}
+            onPress={() => {
+              const leg = currentTrip.driver_response === 'accepted' && currentTrip.one_way_is_active !== false ? 'outbound' : 'return';
+              router.push(`/screens/live-map?tripId=${currentTrip.id}&leg=${leg}&status=accepted`);
+            }}
+          >
+            <FontAwesome5 name="map-marker-alt" size={16} color="#ffffff" style={{ marginRight: 8 }} />
+            <Text style={styles.activeTripButtonText}>View Live Map</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Operational Metrics (Moved down!) */}
       <View style={styles.panelHeader}>
         <Text style={[styles.panelTitle, { color: colors.textSecondary }]}>REALTIME OPERATIONAL METRICS</Text>
@@ -1118,6 +1146,57 @@ const styles = StyleSheet.create({
   elevenAMText: {
     fontSize: 14,
     marginBottom: 16,
+  },
+  activeTripCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  activeTripHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  activeTripBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  activeTripBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginLeft: 6,
+  },
+  activeTripContent: {
+    marginBottom: 12,
+  },
+  activeTripName: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  activeTripRoute: {
+    fontSize: 14,
+  },
+  activeTripButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  activeTripButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
   },
   startTripButton: {
     padding: 14,

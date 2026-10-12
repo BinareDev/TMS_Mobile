@@ -834,25 +834,6 @@ export default function TripsScreen() {
           </View>
         </View>
 
-        {shouldShowStartButton && (
-          <TouchableOpacity
-            style={styles.startTripButton}
-            onPress={() => {
-              // Navigate to live map to start the trip
-              router.push({
-                pathname: '/screens/live-map',
-                params: {
-                  tripId: item.original_id ? item.original_id.toString() : item.id.toString(),
-                  leg: item.leg || 'outbound',
-                  status: item.status
-                }
-              });
-            }}
-          >
-            <Text style={styles.actionButtonText}>Start Trip</Text>
-          </TouchableOpacity>
-        )}
-
         <View style={{ flexDirection: 'row', gap: 12, marginTop: 15 }}>
           <TouchableOpacity
             style={styles.secondaryDetailsButton}
@@ -867,6 +848,26 @@ export default function TripsScreen() {
             <FontAwesome5 name="list-ul" size={14} color="#e2e8f0" style={{ marginRight: 8 }} />
             <Text style={styles.secondaryDetailsText}>Details</Text>
           </TouchableOpacity>
+
+          {shouldShowStartButton && (
+            <TouchableOpacity
+              style={styles.startTripButtonRow}
+              onPress={() => {
+                // Navigate to live map to start the trip
+                router.push({
+                  pathname: '/screens/live-map',
+                  params: {
+                    tripId: item.original_id ? item.original_id.toString() : item.id.toString(),
+                    leg: item.leg || 'outbound',
+                    status: item.status
+                  }
+                });
+              }}
+            >
+              <FontAwesome5 name="play" size={14} color="#ffffff" style={{ marginRight: 8 }} />
+              <Text style={styles.startTripButtonText}>Start Trip</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.primaryMapButton}
@@ -887,6 +888,7 @@ export default function TripsScreen() {
     );
   };
 
+  // ... rest of the code remains the same ...
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return '#f59e0b';
@@ -1350,6 +1352,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     marginTop: 10,
+  },
+  startTripButtonRow: {
+    flex: 1,
+    marginTop: 12,
+    paddingVertical: 14,
+    backgroundColor: '#10b981',
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    shadowColor: '#10b981',
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  startTripButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
   },
   actionButtonText: {
     color: '#ffffff',

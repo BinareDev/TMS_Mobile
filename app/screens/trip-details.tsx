@@ -1,9 +1,9 @@
 import { showCustomAlert } from '@/components/GlobalAlert';
-import { session, tripsAPI } from '@/services/api';
+import { session, tripsAPI, authAPI } from '@/services/api';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, LayoutAnimation } from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Switch, LayoutAnimation, Linking } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 
 export default function TripDetailsScreen() {
@@ -13,6 +13,7 @@ export default function TripDetailsScreen() {
   const [loading, setLoading] = useState(true);
   const [showMapModal, setShowMapModal] = useState(false);
   const [routeCoordinates, setRouteCoordinates] = useState<any[]>([]);
+  const [agencyDetails, setAgencyDetails] = useState<any>(null);
 
   // Expand/Collapse States
   const [isPassengerExpanded, setIsPassengerExpanded] = useState(true);
@@ -29,7 +30,28 @@ export default function TripDetailsScreen() {
 
   useEffect(() => {
     loadTripDetails();
+    fetchAgencyDetails();
   }, [tripId, leg]);
+
+  const fetchAgencyDetails = async () => {
+    try {
+      const agencies = await authAPI.getAgenciesDetailed();
+      setAgencyDetails(agencies);
+    } catch (error) {
+      console.log('Failed to fetch agency details', error);
+    }
+  };
+
+  const getAgencyPhone = () => {
+    if (!trip || !agencyDetails) return 'No Phone Details';
+    
+    const tripAgency = agencyDetails.find((agency: any) => String(agency.id) === String(trip.agency_id));
+    if (tripAgency) {
+      return tripAgency.contact_number || tripAgency.phone || tripAgency.contact || 'No Phone Details';
+    }
+    
+    return trip.company_phone || 'No Phone Details';
+  };
 
   // Fetch route from OSRM (Open Source Routing Machine) - free, no API key required
   const fetchRoute = async (startLat: number, startLng: number, endLat: number, endLng: number, passList: any[] = []) => {
@@ -176,6 +198,7 @@ export default function TripDetailsScreen() {
           passenger_phone: passengerPhone,
           company_name: ts.company_name,
           company_phone: ts.company?.phone_number || ts.company?.phone || ts.company?.contact_number || ts.company_phone || passengerPhone,
+          agency_id: ts.agency_id,
           passengers: passengerList,
           pickup_location: ts.starting_point || 'Unknown Start',
           pickup_lat: ts.starting_lat,
@@ -364,7 +387,17 @@ export default function TripDetailsScreen() {
             </View>
             <View style={styles.passengerDetails}>
               <Text style={styles.newPassengerName}>{trip.company_name || 'No Company Details'}</Text>
-              <Text style={styles.newPassengerPhone}>{trip.company_phone || 'No Phone Details'}</Text>
+              <View style={styles.phoneRow}>
+                <Text style={styles.newPassengerPhone}>{getAgencyPhone()}</Text>
+                {getAgencyPhone() !== 'No Phone Details' && (
+                  <TouchableOpacity
+                    style={styles.callButton}
+                    onPress={() => Linking.openURL(`tel:${getAgencyPhone()}`)}
+                  >
+                    <FontAwesome5 name="phone" size={12} color="#6366f1" />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           </View>
 
@@ -990,6 +1023,19 @@ const styles = StyleSheet.create({
     color: '#6366f1',
     fontWeight: '600',
     marginLeft: 6,
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  callButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
   },
   passengerLocation: {
     flexDirection: 'row',
