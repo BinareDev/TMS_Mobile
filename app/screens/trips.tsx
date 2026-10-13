@@ -708,6 +708,12 @@ export default function TripsScreen() {
       }
 
       showCustomAlert('Success', 'Trip Started!');
+      setTrips(prev => prev.map(t => {
+        const matches = String(t.id) === String(item.id) ||
+          (t.original_id && String(t.original_id) === String(item.original_id));
+        return matches ? { ...t, is_started: true } : t;
+      }));
+
       router.push({
         pathname: '/screens/live-map',
         params: {
@@ -949,20 +955,22 @@ export default function TripsScreen() {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            style={styles.primaryMapButton}
-            onPress={() => router.push({
-              pathname: '/screens/live-map',
-              params: {
-                tripId: item.original_id ? item.original_id.toString() : item.id.toString(),
-                leg: item.leg || 'outbound',
-                status: item.status
-              }
-            })}
-          >
-            <FontAwesome5 name="map-marker-alt" size={14} color="#ffffff" style={{ marginRight: 8 }} />
-            <Text style={styles.primaryMapText}>Live Map</Text>
-          </TouchableOpacity>
+          {item.is_started && (
+            <TouchableOpacity
+              style={styles.primaryMapButton}
+              onPress={() => router.push({
+                pathname: '/screens/live-map',
+                params: {
+                  tripId: item.original_id ? item.original_id.toString() : item.id.toString(),
+                  leg: item.leg || 'outbound',
+                  status: item.status
+                }
+              })}
+            >
+              <FontAwesome5 name="map-marker-alt" size={14} color="#ffffff" style={{ marginRight: 8 }} />
+              <Text style={styles.primaryMapText}>Live Map</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );

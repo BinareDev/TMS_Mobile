@@ -76,10 +76,19 @@ export default function Dashboard() {
           (t.is_active === false && t.driver_response !== 'declined' && t.driver_response_two_way !== 'declined')
         ).length;
 
-        // Find current/active trip
+        // Fetch active locations to see which trips are actually started
+        let activeLocationTripIds = new Set<string>();
+        try {
+          const allLocsRes = await api.get('/mobile/locations/all');
+          const activeLocs = allLocsRes.data.filter((loc: any) => loc.is_active === true);
+          activeLocs.forEach((loc: any) => activeLocationTripIds.add(String(loc.trip_id)));
+        } catch (e) {}
+
+        // Find current/active trip (only if driver has started the trip)
         const now = new Date();
         const current = trips.find((t: any) => {
           if (t.status === 'completed' || !t.is_active) return false;
+          if (!activeLocationTripIds.has(String(t.id))) return false;
           if (!t.start_date) return false;
 
           const startDate = new Date(t.start_date);
@@ -524,7 +533,17 @@ export default function Dashboard() {
       </View>
 
       <View style={styles.actionsRow}>
-        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => router.push('/screens/map' as any)}>
+        <TouchableOpacity
+          style={[styles.actionBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => {
+            if (currentTrip) {
+              const leg = currentTrip.driver_response === 'accepted' && currentTrip.one_way_is_active !== false ? 'outbound' : 'return';
+              router.push(`/screens/live-map?tripId=${currentTrip.id}&leg=${leg}&status=accepted`);
+            } else {
+              showCustomAlert('No Active Trip', 'Please start a trip first to view the Live Map.');
+            }
+          }}
+        >
           <View style={[styles.actionIconContainer, { backgroundColor: 'rgba(236, 72, 153, 0.12)' }]}>
             <FontAwesome5 name="map-marked-alt" size={16} color="#ec4899" />
           </View>

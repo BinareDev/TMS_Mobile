@@ -37,15 +37,48 @@ export default function LiveMapScreen() {
   const driverId = session.user?.id || 'cf6912d9-6617-482b-aacf-dd034c780185';
   const agencyId = session.user?.agency_id || '6e7cdb44-603c-46c4-a4ca-198334c34314';
 
-  // Check if all passengers have been picked up
-  const allPassengersPickedUp = () => {
-    if (!passengers || passengers.length === 0) return false;
-    return passengers.every(p => p.pickup === true);
+  // Haversine formula to calculate distance in km
+  const calculateDistanceInKm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const getDistanceToEndKm = (): number | null => {
+    if (!driverLocation?.coords || trip?.dropoff_lat == null || trip?.dropoff_lng == null) {
+      return null;
+    }
+    return calculateDistanceInKm(
+      driverLocation.coords.latitude,
+      driverLocation.coords.longitude,
+      trip.dropoff_lat,
+      trip.dropoff_lng
+    );
+  };
+
+  // Check if all passengers have been handled (picked up / dropped off or absent)
+  const allPassengersCompleted = () => {
+    if (!passengers || passengers.length === 0) return true;
+    if (leg === 'return') {
+      return passengers.every(p => p.dropoff === true || p.ispresent === false);
+    }
+    return passengers.every(p => p.pickup === true || p.ispresent === false);
   };
 
   // Check if trip is accepted
   const isTripAccepted = () => {
-    return trip?.status === 'accepted' || paramStatus === 'accepted';
+    return (
+      trip?.status === 'accepted' ||
+      paramStatus === 'accepted' ||
+      trip?.status === 'started' ||
+      trip?.status === 'in_progress'
+    );
   };
 
   useEffect(() => {
@@ -581,6 +614,16 @@ export default function LiveMapScreen() {
     );
   }
 
+  const distanceToEndKm = getDistanceToEndKm();
+  const hasDestinationCoords = trip?.dropoff_lat != null && trip?.dropoff_lng != null && trip.dropoff_lat !== 0 && trip.dropoff_lng !== 0;
+  const isWithinOneKm = hasDestinationCoords ? (distanceToEndKm !== null && distanceToEndKm <= 1.0) : true;
+
+  const canEndTrip =
+    trip?.status !== 'completed' &&
+    isTripAccepted() &&
+    isWithinOneKm &&
+    allPassengersCompleted();
+
   return (
     <SafeAreaView style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -731,41 +774,7 @@ export default function LiveMapScreen() {
           snapToInterval={CARD_WIDTH + (CARD_MARGIN * 2)}
           decelerationRate="fast"
         >
-          {/* "All Passengers" Summary Card */}
-          <View style={styles.cardWrapper}>
-            <TouchableOpacity
-              style={[styles.passengerCard, !focusedPassenger && styles.activeCard]}
-              activeOpacity={0.8}
-              onPress={() => handlePassengerSelect(null)}
-            >
-              <View style={styles.cardHeader}>
-                <View style={[styles.avatar, { backgroundColor: 'rgba(99, 102, 241, 0.15)' }]}>
-                  <FontAwesome5 name="users" size={20} color="#6366f1" />
-                </View>
-                <View style={styles.passengerInfo}>
-                  <Text style={styles.passengerName}>All Passengers ({passengers.length})</Text>
-                  <Text style={styles.passengerPhone}>Tap to view all on map</Text>
-                </View>
-              </View>
-              <View style={styles.cardDetails}>
-                <Text style={styles.locationLabel}>TRIP ROUTE</Text>
-                <Text style={styles.locationText} numberOfLines={1}>{trip.pickup_location}</Text>
-                <FontAwesome5 name="arrow-down" size={10} color="#64748b" style={{ marginVertical: 4 }} />
-                <Text style={styles.locationText} numberOfLines={1}>{trip.dropoff_location}</Text>
-
-                {trip?.status !== 'completed' && isTripAccepted() && (passengers.length === 0 || allPassengersPickedUp()) && (
-                  <TouchableOpacity
-                    style={styles.completeTripBtn}
-                    onPress={handleComplete}
-                  >
-                    <Text style={styles.completeTripBtnText}>End</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* Individual Passenger Cards */}
+          {/* Individual Passenger Cards (Stops along the route) */}
           {passengers.map((passenger, index) => (
             <View key={index} style={styles.cardWrapper}>
               <TouchableOpacity
@@ -789,7 +798,9 @@ export default function LiveMapScreen() {
                     />
                   </View>
                   <View style={styles.passengerInfo}>
-                    <Text style={styles.passengerName} numberOfLines={1}>{passenger.name}</Text>
+                    <Text style={styles.passengerName} numberOfLines={1}>
+                      {passenger.name} {passengers.length > 1 ? `(Stop ${index + 1})` : ''}
+                    </Text>
                     <View style={styles.phoneRow}>
                       <FontAwesome5 name="phone" size={10} color="#38bdf8" />
                       <Text style={styles.passengerPhone}>{passenger.phone}</Text>
@@ -797,9 +808,9 @@ export default function LiveMapScreen() {
                   </View>
                 </View>
                 <View style={styles.cardDetails}>
-                  <Text style={styles.locationLabel}>PICKUP POINT</Text>
+                  <Text style={styles.locationLabel}>{leg === 'return' ? 'DROPOFF POINT' : 'PICKUP POINT'}</Text>
                   <Text style={styles.locationText} numberOfLines={2}>{passenger.address}</Text>
-                  {trip?.status !== 'completed' && (
+                  {isTripAccepted() && trip?.status !== 'completed' && (
                     <View style={styles.actionButtonsRow}>
                       {leg === 'outbound' ? (
                         <>
@@ -851,6 +862,75 @@ export default function LiveMapScreen() {
               </TouchableOpacity>
             </View>
           ))}
+
+          {/* Final Destination / End Trip Card (COMES LAST FOR ROUTE TRIPS!) */}
+          <View style={styles.cardWrapper}>
+            <TouchableOpacity
+              style={[styles.passengerCard, !focusedPassenger && styles.activeCard]}
+              activeOpacity={0.8}
+              onPress={() => {
+                setFocusedPassenger(null);
+                if (trip.dropoff_lat && trip.dropoff_lng) {
+                  centerOnCoordinate(trip.dropoff_lat, trip.dropoff_lng);
+                } else {
+                  centerOnAll();
+                }
+              }}
+            >
+              <View style={styles.cardHeader}>
+                <View style={[styles.avatar, { backgroundColor: canEndTrip ? 'rgba(34, 197, 94, 0.2)' : 'rgba(99, 102, 241, 0.15)' }]}>
+                  <FontAwesome5 name={canEndTrip ? "flag-checkered" : "map-marked-alt"} size={18} color={canEndTrip ? "#22c55e" : "#6366f1"} />
+                </View>
+                <View style={styles.passengerInfo}>
+                  <Text style={styles.passengerName}>
+                    {passengers.length > 0 ? 'Final Destination (End)' : 'Trip Destination'}
+                  </Text>
+                  <Text style={styles.passengerPhone}>
+                    {passengers.length > 0
+                      ? `${passengers.filter(p => leg === 'return' ? (p.dropoff || p.ispresent === false) : (p.pickup || p.ispresent === false)).length}/${passengers.length} Stops Completed`
+                      : 'Tap to view full route'}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.cardDetails}>
+                <Text style={styles.locationLabel}>DROPOFF DESTINATION</Text>
+                <Text style={styles.locationText} numberOfLines={1}>{trip.dropoff_location}</Text>
+
+                {distanceToEndKm !== null && (
+                  <View style={styles.distanceBadge}>
+                    <FontAwesome5 name="location-arrow" size={10} color="#818cf8" />
+                    <Text style={styles.distanceBadgeText}>
+                      {distanceToEndKm <= 1.0
+                        ? `Within 1 km (${(distanceToEndKm * 1000).toFixed(0)}m away)`
+                        : `${distanceToEndKm.toFixed(1)} km to destination`}
+                    </Text>
+                  </View>
+                )}
+
+                {canEndTrip ? (
+                  <TouchableOpacity
+                    style={styles.completeTripBtn}
+                    onPress={handleComplete}
+                  >
+                    <FontAwesome5 name="check-circle" size={14} color="#ffffff" style={{ marginRight: 6 }} />
+                    <Text style={styles.completeTripBtnText}>End</Text>
+                  </TouchableOpacity>
+                ) : (
+                  trip?.status !== 'completed' && isTripAccepted() && (
+                    <View style={styles.hintTextContainer}>
+                      <Text style={styles.hintText}>
+                        {!allPassengersCompleted()
+                          ? '⚠️ Complete all stops before ending trip'
+                          : !isWithinOneKm
+                            ? `End button appears within 1 km (${distanceToEndKm !== null ? `${distanceToEndKm.toFixed(1)} km away` : 'calculating...'})`
+                            : 'Trip ready to end'}
+                      </Text>
+                    </View>
+                  )
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </View>
 
@@ -1184,6 +1264,37 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '800',
     fontSize: 13,
+  },
+  distanceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(99, 102, 241, 0.12)',
+  },
+  distanceBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#a5b4fc',
+  },
+  hintTextContainer: {
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  hintText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#94a3b8',
+    textAlign: 'center',
   },
   actionButtonsRow: {
     flexDirection: 'row',
