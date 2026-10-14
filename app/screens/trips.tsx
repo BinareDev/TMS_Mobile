@@ -156,6 +156,19 @@ export default function TripsScreen() {
         console.warn("Failed to fetch locations for is_started flag");
       }
 
+      let activeStoredTripId: string | null = activeSession.trip_id ? String(activeSession.trip_id) : null;
+      let activeStoredLeg: string | null = activeSession.leg || null;
+      try {
+        if (!activeStoredTripId) {
+          activeStoredTripId = await AsyncStorage.getItem('active_trip_id');
+        }
+        if (!activeStoredLeg) {
+          activeStoredLeg = await AsyncStorage.getItem('active_trip_leg');
+        }
+      } catch (e) {
+        // ignore
+      }
+
 
 
       // STEP 1: Get all active trips
@@ -207,9 +220,10 @@ export default function TripsScreen() {
           }
         }
 
+        const hasActiveLocation = activeLocationTripIds.has(String(ts.id));
+
         const baseTrip = {
           original_id: ts.id,
-          is_started: activeLocationTripIds.has(String(ts.id)),
           passenger_name: passengerName,
           passenger_phone: passengerPhone,
           pickup_location: ts.starting_point || 'Unknown Start',
@@ -234,11 +248,25 @@ export default function TripsScreen() {
 
         // Check if this is a two-way trip
         if (ts.two_way_start_time !== null && ts.two_way_start_time !== undefined) {
+          const outboundStatus = ts.driver_response === 'declined' ? 'rejected' : (isOneWayCompleted ? 'completed' : (ts.driver_response === 'accepted' ? 'accepted' : 'pending'));
+          const returnStatus = ts.driver_response_two_way === 'declined' ? 'rejected' : (isTwoWayCompleted ? 'completed' : (ts.driver_response_two_way === 'accepted' ? 'accepted' : 'pending'));
+
+          // An outbound leg is ONLY started if active location exists, status is accepted, not completed, and return leg is not the active one
+          const isOutboundStarted = hasActiveLocation && outboundStatus === 'accepted' && !isOneWayCompleted && (
+            activeStoredTripId === String(ts.id) && activeStoredLeg ? activeStoredLeg === 'outbound' : true
+          );
+
+          // A return leg is ONLY started if active location exists, status is accepted, not completed, and explicitly set as return (or outbound completed)
+          const isReturnStarted = hasActiveLocation && returnStatus === 'accepted' && !isTwoWayCompleted && (
+            activeStoredTripId === String(ts.id) && activeStoredLeg ? activeStoredLeg === 'return' : isOneWayCompleted
+          );
+
           // Outbound leg
           const outboundTrip: Trip = {
             ...baseTrip,
             id: `${ts.id}-outbound`,
-            status: ts.driver_response === 'declined' ? 'rejected' : (isOneWayCompleted ? 'completed' : (ts.driver_response === 'accepted' ? 'accepted' : 'pending')),
+            is_started: isOutboundStarted,
+            status: outboundStatus,
             is_active: ts.is_active !== false && !isOneWayCompleted,
             start_time: (() => {
               const date = ts.start_date;
@@ -260,6 +288,7 @@ export default function TripsScreen() {
           const returnTrip: Trip = {
             ...baseTrip,
             id: `${ts.id}-return`,
+            is_started: isReturnStarted,
             // Reverse pickup and dropoff for return leg
             pickup_location: ts.end_point || 'Unknown Start',
             pickup_lat: ts.end_lat,
@@ -267,7 +296,7 @@ export default function TripsScreen() {
             dropoff_location: ts.starting_point || 'Unknown End',
             dropoff_lat: ts.starting_lat,
             dropoff_lng: ts.starting_lng,
-            status: ts.driver_response_two_way === 'declined' ? 'rejected' : (isTwoWayCompleted ? 'completed' : (ts.driver_response_two_way === 'accepted' ? 'accepted' : 'pending')),
+            status: returnStatus,
             is_active: ts.is_active !== false && !isTwoWayCompleted,
             start_time: (() => {
               const date = ts.start_date;
@@ -286,10 +315,14 @@ export default function TripsScreen() {
           formattedDbTrips.push(returnTrip);
         } else {
           // One-way trip
+          const oneWayStatus = ts.driver_response === 'declined' ? 'rejected' : (isOneWayCompleted ? 'completed' : (ts.driver_response === 'accepted' ? 'accepted' : 'pending'));
+          const isOneWayStarted = hasActiveLocation && oneWayStatus === 'accepted' && !isOneWayCompleted;
+
           const oneWayTrip: Trip = {
             ...baseTrip,
             id: ts.id,
-            status: ts.driver_response === 'declined' ? 'rejected' : (isOneWayCompleted ? 'completed' : (ts.driver_response === 'accepted' ? 'accepted' : 'pending')),
+            is_started: isOneWayStarted,
+            status: oneWayStatus,
             is_active: ts.is_active !== false && !isOneWayCompleted,
             start_time: (() => {
               const date = ts.start_date;
@@ -674,8 +707,12 @@ export default function TripsScreen() {
 
       if (locationResponse && locationResponse.location_id) {
         activeSession.location_id = locationResponse.location_id;
+        activeSession.trip_id = tripId;
+        activeSession.leg = leg;
         try {
           await AsyncStorage.setItem('active_location_id', locationResponse.location_id.toString());
+          await AsyncStorage.setItem('active_trip_id', tripId.toString());
+          await AsyncStorage.setItem('active_trip_leg', leg);
         } catch (storageErr) {
           console.warn("AsyncStorage not available, skipping local save.", storageErr);
         }
@@ -702,16 +739,18 @@ export default function TripsScreen() {
 
       // Accept the trip (if it's not already accepted)
       try {
-        await tripsAPI.acceptTrip(tripId, driverId);
+        if (leg === 'return') {
+          await tripsAPI.acceptReturnTrip(tripId, driverId);
+        } else {
+          await tripsAPI.acceptTrip(tripId, driverId);
+        }
       } catch (acceptErr) {
         console.warn("acceptTrip failed, it might already be accepted.", acceptErr);
       }
 
       showCustomAlert('Success', 'Trip Started!');
       setTrips(prev => prev.map(t => {
-        const matches = String(t.id) === String(item.id) ||
-          (t.original_id && String(t.original_id) === String(item.original_id));
-        return matches ? { ...t, is_started: true } : t;
+        return String(t.id) === String(item.id) ? { ...t, is_started: true } : t;
       }));
 
       router.push({
@@ -786,8 +825,12 @@ export default function TripsScreen() {
 
       try {
         await AsyncStorage.removeItem('active_location_id');
+        await AsyncStorage.removeItem('active_trip_id');
+        await AsyncStorage.removeItem('active_trip_leg');
       } catch (e) { }
       activeSession.location_id = null;
+      activeSession.trip_id = null;
+      activeSession.leg = null;
 
       showCustomAlert('Success', 'Trip completed successfully');
 
@@ -839,7 +882,7 @@ export default function TripsScreen() {
       displayStatus = 'completed';
     }
 
-    const isCurrentlyRunning = item.is_started && activeTab === 'current' && item.is_active !== false;
+    const isCurrentlyRunning = item.is_started && item.status === 'accepted' && activeTab === 'current' && item.is_active !== false;
 
     // Check if trip is within 2 minutes of start time for showing Start Trip button
     const now = new Date();
@@ -955,7 +998,7 @@ export default function TripsScreen() {
             </TouchableOpacity>
           )}
 
-          {item.is_started && (
+          {item.is_started && item.status === 'accepted' && (
             <TouchableOpacity
               style={styles.primaryMapButton}
               onPress={() => router.push({

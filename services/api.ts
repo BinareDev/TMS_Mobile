@@ -65,8 +65,14 @@ export const loadSession = async () => {
 };
 
 // Fallback for AsyncStorage if it crashes
-export const activeSession: { location_id: number | null } = {
-  location_id: null
+export const activeSession: {
+  location_id: number | null;
+  trip_id?: string | number | null;
+  leg?: 'outbound' | 'return' | null;
+} = {
+  location_id: null,
+  trip_id: null,
+  leg: null,
 };
 
 export const setAuthToken = (token: string | null) => {

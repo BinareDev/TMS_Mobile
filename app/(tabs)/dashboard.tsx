@@ -422,10 +422,18 @@ export default function Dashboard() {
       // Call location API to create location record
       const locationResponse = await tripsAPI.startLocationTracking(locationData);
 
+      const targetLeg = tripToStartNow
+        ? (tripToStartNow.startingLeg || (tripToStartNow.one_way_is_active !== false ? 'outbound' : 'return'))
+        : 'outbound';
+
       if (locationResponse && locationResponse.location_id) {
         activeSession.location_id = locationResponse.location_id;
+        activeSession.trip_id = tripId;
+        activeSession.leg = targetLeg;
         try {
           await AsyncStorage.setItem('active_location_id', locationResponse.location_id.toString());
+          await AsyncStorage.setItem('active_trip_id', tripId.toString());
+          await AsyncStorage.setItem('active_trip_leg', targetLeg);
         } catch (storageErr) {
           console.warn("AsyncStorage not available, skipping local save.", storageErr);
         }
@@ -457,16 +465,19 @@ export default function Dashboard() {
 
       // Accept the trip (if it's not already accepted)
       try {
-        await tripsAPI.acceptTrip(tripId, driverId);
+        if (targetLeg === 'return') {
+          await tripsAPI.acceptReturnTrip(tripId, driverId);
+        } else {
+          await tripsAPI.acceptTrip(tripId, driverId);
+        }
       } catch (acceptErr) {
         console.warn("acceptTrip failed, it might already be accepted.", acceptErr);
       }
 
       showCustomAlert('Success', 'Trip Started!');
       if (tripToStartNow) {
-        const leg = tripToStartNow.startingLeg || (tripToStartNow.one_way_is_active !== false ? 'outbound' : 'return');
-        dismissTripStart(`${tripId}-${leg}`);
-        router.push(`/screens/live-map?tripId=${tripId}&leg=${leg}`);
+        dismissTripStart(`${tripId}-${targetLeg}`);
+        router.push(`/screens/live-map?tripId=${tripId}&leg=${targetLeg}`);
       } else {
         dismissTripStart(String(tripId));
         router.push(`/screens/live-map?tripId=${tripId}&leg=outbound`);

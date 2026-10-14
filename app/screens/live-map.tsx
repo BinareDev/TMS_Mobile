@@ -101,6 +101,14 @@ export default function LiveMapScreen() {
         if (storedId) {
           activeSession.location_id = parseInt(storedId, 10);
         }
+        const storedTripId = await AsyncStorage.getItem('active_trip_id');
+        if (storedTripId) {
+          activeSession.trip_id = storedTripId;
+        }
+        const storedLeg = await AsyncStorage.getItem('active_trip_leg');
+        if (storedLeg === 'outbound' || storedLeg === 'return') {
+          activeSession.leg = storedLeg;
+        }
       } catch (e) {
         console.warn('Failed to load active_location_id', e);
       }
@@ -596,8 +604,12 @@ export default function LiveMapScreen() {
 
       try {
         await AsyncStorage.removeItem('active_location_id');
+        await AsyncStorage.removeItem('active_trip_id');
+        await AsyncStorage.removeItem('active_trip_leg');
       } catch (e) { }
       activeSession.location_id = null;
+      activeSession.trip_id = null;
+      activeSession.leg = null;
 
       showCustomAlert('Success', 'Trip completed successfully');
       router.replace('/(tabs)/dashboard');
