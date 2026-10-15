@@ -50,6 +50,16 @@ export default function LiveMapScreen() {
     return R * c;
   };
 
+  // Sort passengers by distance from starting location
+  const sortPassengersByProximity = (passengerList: any[], startLat: number, startLng: number) => {
+    return passengerList
+      .map(p => ({
+        ...p,
+        distanceFromStart: p.lat && p.lng ? calculateDistanceInKm(startLat, startLng, p.lat, p.lng) : Infinity
+      }))
+      .sort((a, b) => a.distanceFromStart - b.distanceFromStart);
+  };
+
   const getDistanceToEndKm = (): number | null => {
     if (!driverLocation?.coords || trip?.dropoff_lat == null || trip?.dropoff_lng == null) {
       return null;
@@ -122,6 +132,12 @@ export default function LiveMapScreen() {
 
     const currentLoc = await Location.getCurrentPositionAsync({});
     setDriverLocation(currentLoc);
+
+    // Recalculate route from driver's actual current location immediately
+    // This handles the case when driver starts from outside the planned route
+    if (trip && routeWaypoints.length > 0) {
+      recalculateRoute(currentLoc.coords.latitude, currentLoc.coords.longitude);
+    }
 
     locationSubscription.current = await Location.watchPositionAsync(
   {
@@ -200,9 +216,9 @@ export default function LiveMapScreen() {
   const recalculateRoute = async (currentLat: number, currentLng: number) => {
     if (routeWaypoints.length < 2) return;
 
-    // Debounce: only recalculate if at least 5 seconds have passed since last recalculation
+    // Debounce: only recalculate if at least 3 seconds have passed since last recalculation
     const now = Date.now();
-    if (now - lastRouteRecalculationRef.current < 5000) {
+    if (now - lastRouteRecalculationRef.current < 3000) {
       return;
     }
     lastRouteRecalculationRef.current = now;
@@ -237,6 +253,7 @@ export default function LiveMapScreen() {
           longitude: coord[0],
         }));
         setRouteCoordinates(coordinates);
+        console.log('Route recalculated successfully from driver location');
       }
     } catch (error) {
       console.error('Dynamic route recalculation failed', error);
@@ -356,6 +373,7 @@ export default function LiveMapScreen() {
       }
 
       if (tripData && leg === 'return') {
+        const sortedPassengers = sortPassengersByProximity(tripData.passengers || [], tripData.dropoff_lat, tripData.dropoff_lng);
         setTrip({
           ...tripData,
           pickup_location: tripData.dropoff_location,
@@ -365,9 +383,9 @@ export default function LiveMapScreen() {
           dropoff_lat: tripData.pickup_lat,
           dropoff_lng: tripData.pickup_lng,
         });
-        setPassengers(tripData.passengers || []);
+        setPassengers(sortedPassengers);
         if (tripData.dropoff_lat && tripData.dropoff_lng && tripData.pickup_lat && tripData.pickup_lng) {
-          fetchRoute(tripData.dropoff_lat, tripData.dropoff_lng, tripData.pickup_lat, tripData.pickup_lng, tripData.passengers || []);
+          fetchRoute(tripData.dropoff_lat, tripData.dropoff_lng, tripData.pickup_lat, tripData.pickup_lng, sortedPassengers);
           // Make sure car marker is visible immediately
           setDriverLocation(prev => prev || {
             coords: { latitude: tripData.dropoff_lat, longitude: tripData.dropoff_lng, altitude: null, accuracy: 5, altitudeAccuracy: null, heading: null, speed: 0 },
@@ -375,15 +393,39 @@ export default function LiveMapScreen() {
           });
         }
       } else if (tripData) {
+        const sortedPassengers = sortPassengersByProximity(tripData.passengers || [], tripData.pickup_lat, tripData.pickup_lng);
         setTrip(tripData);
-        setPassengers(tripData.passengers || []);
+        setPassengers(sortedPassengers);
         if (tripData.pickup_lat && tripData.pickup_lng && tripData.dropoff_lat && tripData.dropoff_lng) {
-          fetchRoute(tripData.pickup_lat, tripData.pickup_lng, tripData.dropoff_lat, tripData.dropoff_lng, tripData.passengers || []);
+          fetchRoute(tripData.pickup_lat, tripData.pickup_lng, tripData.dropoff_lat, tripData.dropoff_lng, sortedPassengers);
           // Make sure car marker is visible immediately
           setDriverLocation(prev => prev || {
             coords: { latitude: tripData.pickup_lat, longitude: tripData.pickup_lng, altitude: null, accuracy: 5, altitudeAccuracy: null, heading: null, speed: 0 },
             timestamp: Date.now()
           });
+        }
+      }
+
+      // If driver location is already available and differs from planned start, recalculate route
+      if (driverLocation && tripData) {
+        const startLat = leg === 'return' ? tripData.dropoff_lat : tripData.pickup_lat;
+        const startLng = leg === 'return' ? tripData.dropoff_lng : tripData.pickup_lng;
+        const endLat = leg === 'return' ? tripData.pickup_lat : tripData.dropoff_lat;
+        const endLng = leg === 'return' ? tripData.pickup_lng : tripData.dropoff_lng;
+        
+        const distanceFromStart = calculateDistanceInKm(
+          driverLocation.coords.latitude,
+          driverLocation.coords.longitude,
+          startLat,
+          startLng
+        );
+        
+        // If driver is more than 500m from planned start, recalculate from actual location
+        if (distanceFromStart > 0.5) {
+          console.log('Driver is outside planned route, recalculating from actual location');
+          const sortedPassengers = sortPassengersByProximity(tripData.passengers || [], driverLocation.coords.latitude, driverLocation.coords.longitude);
+          setPassengers(sortedPassengers);
+          fetchRoute(driverLocation.coords.latitude, driverLocation.coords.longitude, endLat, endLng, sortedPassengers);
         }
       }
     } catch (error: any) {
