@@ -1,5 +1,12 @@
 import { showCustomAlert } from '@/components/GlobalAlert';
 import { activeSession, api, session, tripsAPI } from '@/services/api';
+import {
+  RouteDeviationDetector,
+  calculateDistanceToRoute,
+  fetchGoogleMapsRoute,
+  notifyDeviation,
+  type RoutePoint,
+} from '@/services/routeDeviation';
 import { FontAwesome5 } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -23,6 +30,7 @@ export default function LiveMapScreen() {
   const [passengers, setPassengers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [routeCoordinates, setRouteCoordinates] = useState<any[]>([]);
+  const [originalRouteCoordinates, setOriginalRouteCoordinates] = useState<any[]>([]);
   const [driverLocation, setDriverLocation] = useState<Location.LocationObject | null>(null);
   const [focusedPassenger, setFocusedPassenger] = useState<any>(null);
   const [showPassengerModal, setShowPassengerModal] = useState(false);
@@ -33,9 +41,19 @@ export default function LiveMapScreen() {
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
   const lastRouteRecalculationRef = useRef(0);
   const [routeWaypoints, setRouteWaypoints] = useState<any[]>([]);
+  
+  // Route deviation detection state
+  const deviationDetectorRef = useRef(new RouteDeviationDetector());
+  const [isDeviating, setIsDeviating] = useState(false);
+  const [deviationDistance, setDeviationDistance] = useState(0);
+  const [isRerouting, setIsRerouting] = useState(false);
+  const [showDeviationAlert, setShowDeviationAlert] = useState(false);
 
   const driverId = session.user?.id || 'cf6912d9-6617-482b-aacf-dd034c780185';
   const agencyId = session.user?.agency_id || '6e7cdb44-603c-46c4-a4ca-198334c34314';
+  
+  // Google Maps API Key from app.json or environment
+  const GOOGLE_MAPS_API_KEY = 'AIzaSyC3hcVreZORUipdbZryndAPXRj9a_-EEuU';
 
   const getDistanceToEndKm = (): number | null => {
     if (!driverLocation?.coords || trip?.dropoff_lat == null || trip?.dropoff_lng == null) {
@@ -83,6 +101,80 @@ export default function LiveMapScreen() {
     };
   }, [tripId, leg]);
 
+  const handleAutomaticReroute = async (currentLat: number, currentLng: number) => {
+    if (!trip || isRerouting) return;
+
+    try {
+      setIsRerouting(true);
+      console.log('Starting automatic rerouting...');
+
+      // Find next destination (either next passenger or final dropoff)
+      let nextDestination = { lat: trip.dropoff_lat, lng: trip.dropoff_lng };
+      let waypoints: { lat: number; lng: number }[] = [];
+
+      // Find remaining passengers not yet picked up/dropped
+      const remainingPassengers = passengers.filter(p => {
+        if (leg === 'return') {
+          return !p.dropoff && p.ispresent !== false;
+        }
+        return !p.pickup && p.ispresent !== false;
+      });
+
+      if (remainingPassengers.length > 0) {
+        // Use first remaining passenger as next waypoint
+        const nextPassenger = remainingPassengers[0];
+        waypoints = remainingPassengers
+          .filter(p => p.lat && p.lng)
+          .map(p => ({ lat: p.lat, lng: p.lng }));
+        nextDestination = { lat: trip.dropoff_lat, lng: trip.dropoff_lng };
+      }
+
+      // Fetch new route from Google Maps
+      const rerouteResult = await fetchGoogleMapsRoute(
+        { lat: currentLat, lng: currentLng },
+        nextDestination,
+        GOOGLE_MAPS_API_KEY,
+        waypoints.length > 0 ? waypoints : undefined
+      );
+
+      // Update route with new path
+      setOriginalRouteCoordinates([...routeCoordinates]); // Save original
+      setRouteCoordinates(rerouteResult.newRoute);
+      
+      // Mark reroute as complete
+      deviationDetectorRef.current.markReroute();
+
+      // Notify backend of reroute
+      await notifyDeviation(
+        String(tripId),
+        driverId,
+        api,
+        {
+          currentLat,
+          currentLng,
+          deviationDistance: deviationDistance,
+          originalRoute: originalRouteCoordinates,
+          newRoute: rerouteResult.newRoute,
+        }
+      );
+
+      showCustomAlert(
+        'Route Updated',
+        `New route calculated. ${rerouteResult.estimatedDistance ? `Distance: ${(rerouteResult.estimatedDistance / 1000).toFixed(1)}km` : ''}`
+      );
+
+      console.log('Automatic rerouting completed successfully');
+    } catch (error) {
+      console.error('Automatic rerouting failed:', error);
+      showCustomAlert(
+        'Rerouting Failed',
+        'Could not calculate new route. Using original route.'
+      );
+    } finally {
+      setIsRerouting(false);
+    }
+  };
+
   const startLocationTracking = async () => {
     // If activeSession is missing, try to restore from AsyncStorage
     if (!activeSession.location_id) {
@@ -121,6 +213,46 @@ export default function LiveMapScreen() {
   },
       (loc) => {
         setDriverLocation(loc);
+
+        // Check for route deviation
+        if (routeCoordinates.length > 0 && !isSimulatingRef.current) {
+          const deviationStatus = deviationDetectorRef.current.checkDeviation(
+            loc.coords.latitude,
+            loc.coords.longitude,
+            routeCoordinates,
+            loc.coords.accuracy ?? undefined
+          );
+
+          setDeviationDistance(deviationStatus.distanceFromRoute);
+          setIsDeviating(deviationStatus.isDeviating);
+
+          // If deviation detected and not yet notified, notify admin
+          if (deviationStatus.isDeviating && !deviationDetectorRef.current.isDeviationNotified()) {
+            deviationDetectorRef.current.markDeviationNotified();
+            setShowDeviationAlert(true);
+
+            // Notify backend
+            notifyDeviation(
+              String(tripId),
+              driverId,
+              api,
+              {
+                currentLat: loc.coords.latitude,
+                currentLng: loc.coords.longitude,
+                deviationDistance: deviationStatus.distanceFromRoute,
+                originalRoute: originalRouteCoordinates.length > 0 ? originalRouteCoordinates : routeCoordinates,
+              }
+            ).catch(e => console.error('Failed to notify deviation:', e));
+          }
+
+          // If deviation confirmed and rerouting is allowed, trigger automatic rerouting
+          if (deviationStatus.isDeviating && 
+              deviationDetectorRef.current.canReroute() && 
+              !isRerouting &&
+              trip) {
+            handleAutomaticReroute(loc.coords.latitude, loc.coords.longitude);
+          }
+        }
 
         // Push the updated location to the backend if we have an active location session
         if (activeSession && activeSession.location_id) {
@@ -169,17 +301,29 @@ export default function LiveMapScreen() {
           longitude: coord[0],
         }));
         setRouteCoordinates(coordinates);
+        // Save as original route if not already set
+        if (originalRouteCoordinates.length === 0) {
+          setOriginalRouteCoordinates(coordinates);
+        }
       } else {
-        setRouteCoordinates([
+        const fallbackRoute = [
           { latitude: startLat, longitude: startLng },
           { latitude: endLat, longitude: endLng },
-        ]);
+        ];
+        setRouteCoordinates(fallbackRoute);
+        if (originalRouteCoordinates.length === 0) {
+          setOriginalRouteCoordinates(fallbackRoute);
+        }
       }
     } catch (error) {
-      setRouteCoordinates([
+      const fallbackRoute = [
         { latitude: startLat, longitude: startLng },
         { latitude: endLat, longitude: endLng },
-      ]);
+      ];
+      setRouteCoordinates(fallbackRoute);
+      if (originalRouteCoordinates.length === 0) {
+        setOriginalRouteCoordinates(fallbackRoute);
+      }
     }
   };
 
@@ -591,13 +735,23 @@ export default function LiveMapScreen() {
         }}
 
       >
-        {/* Route Line */}
+        {/* Original Route (shown when rerouted) */}
+        {originalRouteCoordinates.length > 0 && originalRouteCoordinates.length !== routeCoordinates.length && (
+          <Polyline
+            coordinates={originalRouteCoordinates}
+            strokeColor="#94a3b8"
+            strokeWidth={3}
+            lineDashPattern={[5, 5]}
+          />
+        )}
+
+        {/* Current Route Line */}
         <Polyline
           coordinates={routeCoordinates.length > 0 ? routeCoordinates : [
             { latitude: trip.pickup_lat, longitude: trip.pickup_lng },
             { latitude: trip.dropoff_lat, longitude: trip.dropoff_lng },
           ]}
-          strokeColor="#6366f1"
+          strokeColor={isDeviating ? "#f59e0b" : "#6366f1"}
           strokeWidth={4}
         />
 
@@ -972,6 +1126,47 @@ export default function LiveMapScreen() {
           </View>
         </Modal>
       )}
+
+      {/* Route Deviation Alert Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showDeviationAlert}
+        onRequestClose={() => setShowDeviationAlert(false)}
+      >
+        <View style={styles.deviationModalOverlay}>
+          <View style={styles.deviationModalContent}>
+            <View style={styles.deviationModalHeader}>
+              <FontAwesome5 name="exclamation-triangle" size={32} color="#f59e0b" />
+              <Text style={styles.deviationModalTitle}>Route Deviation Detected</Text>
+            </View>
+
+            <View style={styles.deviationModalBody}>
+              <Text style={styles.deviationModalText}>
+                You have deviated from the assigned route by approximately {(deviationDistance).toFixed(0)} meters.
+              </Text>
+              
+              {isRerouting ? (
+                <View style={styles.reroutingContainer}>
+                  <FontAwesome5 name="sync" size={20} color="#6366f1" />
+                  <Text style={styles.reroutingText}>Calculating new route...</Text>
+                </View>
+              ) : (
+                <Text style={styles.deviationModalSubtext}>
+                  Automatic rerouting will be triggered if you continue off-route.
+                </Text>
+              )}
+
+              <TouchableOpacity
+                style={styles.deviationDismissBtn}
+                onPress={() => setShowDeviationAlert(false)}
+              >
+                <Text style={styles.deviationDismissBtnText}>Dismiss</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1343,6 +1538,75 @@ const styles = StyleSheet.create({
   doneBtnText: {
     color: '#ffffff',
     fontSize: 16,
+    fontWeight: '700',
+  },
+  deviationModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deviationModalContent: {
+    backgroundColor: '#1e293b',
+    borderRadius: 16,
+    padding: 24,
+    margin: 20,
+    maxWidth: 340,
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+  },
+  deviationModalHeader: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  deviationModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#f8fafc',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  deviationModalBody: {
+    marginBottom: 16,
+  },
+  deviationModalText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#cbd5e1',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  deviationModalSubtext: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  reroutingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    borderRadius: 8,
+  },
+  reroutingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6366f1',
+  },
+  deviationDismissBtn: {
+    backgroundColor: '#6366f1',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  deviationDismissBtnText: {
+    color: '#ffffff',
+    fontSize: 14,
     fontWeight: '700',
   }
 });

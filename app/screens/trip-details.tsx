@@ -188,9 +188,11 @@ export default function TripDetailsScreen() {
         
         let computedStatus = 'pending';
         if (leg === 'return') {
-          computedStatus = ts.driver_response_two_way === 'declined' ? 'rejected' : (isTwoWayCompleted ? 'completed' : (ts.driver_response_two_way === 'accepted' ? 'accepted' : 'pending'));
+          // If driver_response is declined but trip is still assigned to this driver, it was reassigned - treat as pending
+          computedStatus = (ts.driver_response_two_way === 'declined' && !isTwoWayCompleted) ? 'pending' : (isTwoWayCompleted ? 'completed' : (ts.driver_response_two_way === 'accepted' ? 'accepted' : 'pending'));
         } else {
-          computedStatus = ts.driver_response === 'declined' ? 'rejected' : (isOneWayCompleted ? 'completed' : (ts.driver_response === 'accepted' ? 'accepted' : 'pending'));
+          // If driver_response is declined but trip is still assigned to this driver, it was reassigned - treat as pending
+          computedStatus = (ts.driver_response === 'declined' && !isOneWayCompleted) ? 'pending' : (isOneWayCompleted ? 'completed' : (ts.driver_response === 'accepted' ? 'accepted' : 'pending'));
         }
         
         return {

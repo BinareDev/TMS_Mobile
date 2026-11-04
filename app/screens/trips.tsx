@@ -248,8 +248,9 @@ export default function TripsScreen() {
 
         // Check if this is a two-way trip
         if (ts.two_way_start_time !== null && ts.two_way_start_time !== undefined) {
-          const outboundStatus = ts.driver_response === 'declined' ? 'rejected' : (isOneWayCompleted ? 'completed' : (ts.driver_response === 'accepted' ? 'accepted' : 'pending'));
-          const returnStatus = ts.driver_response_two_way === 'declined' ? 'rejected' : (isTwoWayCompleted ? 'completed' : (ts.driver_response_two_way === 'accepted' ? 'accepted' : 'pending'));
+          // If driver_response is declined but trip is still assigned to this driver, it was reassigned - treat as pending
+          const outboundStatus = (ts.driver_response === 'declined' && !isOneWayCompleted) ? 'pending' : (isOneWayCompleted ? 'completed' : (ts.driver_response === 'accepted' ? 'accepted' : 'pending'));
+          const returnStatus = (ts.driver_response_two_way === 'declined' && !isTwoWayCompleted) ? 'pending' : (isTwoWayCompleted ? 'completed' : (ts.driver_response_two_way === 'accepted' ? 'accepted' : 'pending'));
 
           // An outbound leg is ONLY started if active location exists, status is accepted, not completed, and return leg is not the active one
           const isOutboundStarted = hasActiveLocation && outboundStatus === 'accepted' && !isOneWayCompleted && (
@@ -315,7 +316,8 @@ export default function TripsScreen() {
           formattedDbTrips.push(returnTrip);
         } else {
           // One-way trip
-          const oneWayStatus = ts.driver_response === 'declined' ? 'rejected' : (isOneWayCompleted ? 'completed' : (ts.driver_response === 'accepted' ? 'accepted' : 'pending'));
+          // If driver_response is declined but trip is still assigned to this driver, it was reassigned - treat as pending
+          const oneWayStatus = (ts.driver_response === 'declined' && !isOneWayCompleted) ? 'pending' : (isOneWayCompleted ? 'completed' : (ts.driver_response === 'accepted' ? 'accepted' : 'pending'));
           const isOneWayStarted = hasActiveLocation && oneWayStatus === 'accepted' && !isOneWayCompleted;
 
           const oneWayTrip: Trip = {
@@ -412,12 +414,18 @@ export default function TripsScreen() {
         }
 
         // Global statuses that mean it's done
-        if (t.status === 'completed' || t.status === 'rejected') {
+        // Note: 'rejected' status from history is handled by filtering logic, not here
+        // Active trips with 'rejected' status are reassigned trips that should be treated as pending
+        if (t.status === 'completed') {
+          isActive = false;
+        }
+        // Only mark as inactive if it's a history record with rejected status
+        if (t.status === 'rejected' && t.source === 'history') {
           isActive = false;
         }
 
         // --- FUTURE DATE OVERRIDE ---
-        if (activeTab === 'upcoming' && t.end_date && t.status !== 'rejected') {
+        if (activeTab === 'upcoming' && t.end_date) {
           const selected = new Date(selectedDate);
           selected.setHours(0, 0, 0, 0);
 
@@ -486,14 +494,18 @@ export default function TripsScreen() {
           if (t.source === 'history') return false; // History doesn't show in current tab
 
           // If there is ANY history for TODAY for this trip, hide it from the current tab!
-          const hasHistoryForToday = historyFormattedTrips.some(h => {
-            if (!h.start_date) return false;
-            const [hYear, hMonth, hDay] = h.start_date.split('-').map(Number);
-            const hDate = new Date(hYear, hMonth - 1, hDay);
-            hDate.setHours(0, 0, 0, 0);
-            return h.original_id === t.original_id && (h.leg === t.leg || !h.leg) && hDate.getTime() === today.getTime();
-          });
-          if (hasHistoryForToday) return false;
+          // BUT: If the trip is reassigned (status is pending but trip is active), show it anyway
+          // This handles the case where admin reassigns a trip from Driver A to Driver B
+          if (t.status !== 'pending' || !isActive) {
+            const hasHistoryForToday = historyFormattedTrips.some(h => {
+              if (!h.start_date) return false;
+              const [hYear, hMonth, hDay] = h.start_date.split('-').map(Number);
+              const hDate = new Date(hYear, hMonth - 1, hDay);
+              hDate.setHours(0, 0, 0, 0);
+              return h.original_id === t.original_id && (h.leg === t.leg || !h.leg) && hDate.getTime() === today.getTime();
+            });
+            if (hasHistoryForToday) return false;
+          }
 
           // For current tab only, hide completed trips
           if (!isActive) return false;
@@ -532,14 +544,17 @@ export default function TripsScreen() {
           }
 
           // For active trips, if we already have a history record for this exact date, hide it!
-          const hasHistoryForDate = historyFormattedTrips.some(h => {
-            if (!h.start_date) return false;
-            const [hYear, hMonth, hDay] = h.start_date.split('-').map(Number);
-            const hDate = new Date(hYear, hMonth - 1, hDay);
-            hDate.setHours(0, 0, 0, 0);
-            return h.original_id === t.original_id && (h.leg === t.leg || !h.leg) && hDate.getTime() === selected.getTime();
-          });
-          if (hasHistoryForDate) return false;
+          // BUT: If the trip is reassigned (status is pending but trip is active), show it anyway
+          if (t.status !== 'pending' || !isActive) {
+            const hasHistoryForDate = historyFormattedTrips.some(h => {
+              if (!h.start_date) return false;
+              const [hYear, hMonth, hDay] = h.start_date.split('-').map(Number);
+              const hDate = new Date(hYear, hMonth - 1, hDay);
+              hDate.setHours(0, 0, 0, 0);
+              return h.original_id === t.original_id && (h.leg === t.leg || !h.leg) && hDate.getTime() === selected.getTime();
+            });
+            if (hasHistoryForDate) return false;
+          }
 
           if (t.start_date) {
             const [startYear, startMonth, startDay] = t.start_date.split('-').map(Number);
