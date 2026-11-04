@@ -4,7 +4,7 @@
  * This service handles:
  * 1. Calculating distance from driver to assigned route
  * 2. Detecting route deviations (100m threshold)
- * 3. Automatic rerouting using Google Maps Routes API
+ * 3. Automatic rerouting using OSRM with multiple servers
  * 4. Notifying backend of deviations
  */
 
@@ -28,9 +28,134 @@ export interface RerouteResult {
   estimatedDistance?: number;
 }
 
+export type LatLng = [number, number];
+
+export interface OsrmRoute {
+  geometry: { coordinates: [number, number][] };
+  distance: number;
+  duration: number;
+}
+
 const DEVIATION_THRESHOLD_METERS = 100; // 100 meters
 const CONSECUTIVE_DEVIATIONS_REQUIRED = 3; // Require 3 consecutive readings to confirm deviation
 const REROUTE_COOLDOWN_MS = 60000; // Don't reroute more than once per minute
+
+const OSRM_SERVERS = [
+  'https://router.project-osrm.org',
+  'https://routing.openstreetmap.de/routed-car',
+];
+
+/**
+ * Request OSRM route with fallback servers
+ */
+export async function requestOsrmLeg(from: LatLng, to: LatLng): Promise<OsrmRoute[]> {
+  const coordinates = `${from[1]},${from[0]};${to[1]},${to[0]}`;
+  let lastError: unknown;
+
+  for (const server of OSRM_SERVERS) {
+    try {
+      const response = await fetch(
+        `${server}/route/v1/driving/${coordinates}?overview=full&geometries=geojson&alternatives=2&steps=false`,
+        { method: 'GET' }
+      );
+      if (!response.ok) throw new Error(`OSRM HTTP ${response.status}`);
+      const data = await response.json();
+      if (data.code !== 'Ok' || !Array.isArray(data.routes) || !data.routes.length) {
+        throw new Error(data.message || `OSRM returned ${data.code || 'no routes'}`);
+      }
+      return data.routes as OsrmRoute[];
+    } catch (error) {
+      lastError = error;
+      console.warn(`Routing server failed: ${server}`, error);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('Unable to calculate route');
+}
+
+/**
+ * Convert OSRM geometry to LatLng array
+ */
+export function osrmGeometryToLatLng(route: OsrmRoute): LatLng[] {
+  return route.geometry.coordinates.map(([lng, lat]) => [lat, lng] as LatLng);
+}
+
+/**
+ * Join route parts, removing duplicate points at junctions
+ */
+export function joinRouteParts(parts: LatLng[][]): LatLng[] {
+  const joined: LatLng[] = [];
+  parts.forEach(part => {
+    if (!part?.length) return;
+    joined.push(...(joined.length ? part.slice(1) : part));
+  });
+  return joined;
+}
+
+/**
+ * Calculate itinerary routes through all ordered stops
+ * Returns primary route and alternatives
+ */
+export async function calculateItineraryRoutes(stops: LatLng[]): Promise<{
+  primary: LatLng[];
+  alternatives: LatLng[][];
+  legRoutes: OsrmRoute[][];
+}> {
+  if (stops.length < 2) throw new Error('At least a start and destination are required');
+
+  const legRoutes: OsrmRoute[][] = [];
+  for (let index = 0; index < stops.length - 1; index++) {
+    const routes = await requestOsrmLeg(stops[index], stops[index + 1]);
+    legRoutes.push(routes);
+  }
+
+  const primaryParts = legRoutes.map(routes => osrmGeometryToLatLng(routes[0]));
+  const primary = joinRouteParts(primaryParts);
+
+  const alternatives: LatLng[][] = [];
+  for (let legIndex = 0; legIndex < legRoutes.length && alternatives.length < 2; legIndex++) {
+    if (legRoutes[legIndex].length < 2) continue;
+    const alternativeParts = legRoutes.map((routes, index) =>
+      osrmGeometryToLatLng(index === legIndex ? routes[1] : routes[0])
+    );
+    alternatives.push(joinRouteParts(alternativeParts));
+  }
+
+  return { primary, alternatives, legRoutes };
+}
+
+/**
+ * Calculate distance from point to route segment in meters
+ */
+export function distanceToRouteSegmentMeters(point: LatLng, start: LatLng, end: LatLng): number {
+  const earthRadius = 6371000;
+  const referenceLat = point[0] * Math.PI / 180;
+  const project = ([lat, lng]: LatLng) => ({
+    x: lng * Math.PI / 180 * earthRadius * Math.cos(referenceLat),
+    y: lat * Math.PI / 180 * earthRadius,
+  });
+  const p = project(point);
+  const a = project(start);
+  const b = project(end);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+/**
+ * Calculate minimum distance from point to route in meters
+ */
+export function distanceFromRouteMeters(point: LatLng, route: LatLng[]): number {
+  if (route.length < 2) return Infinity;
+  let nearest = Infinity;
+  for (let index = 0; index < route.length - 1; index++) {
+    nearest = Math.min(nearest, distanceToRouteSegmentMeters(point, route[index], route[index + 1]));
+  }
+  return nearest;
+}
 
 /**
  * Calculate distance between two points using Haversine formula

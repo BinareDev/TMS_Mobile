@@ -3,8 +3,10 @@ import { activeSession, api, session, tripsAPI } from '@/services/api';
 import {
   RouteDeviationDetector,
   calculateDistanceToRoute,
-  fetchGoogleMapsRoute,
+  calculateItineraryRoutes,
+  distanceFromRouteMeters,
   notifyDeviation,
+  type LatLng,
   type RoutePoint,
 } from '@/services/routeDeviation';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -48,6 +50,7 @@ export default function LiveMapScreen() {
   const [deviationDistance, setDeviationDistance] = useState(0);
   const [isRerouting, setIsRerouting] = useState(false);
   const [showDeviationAlert, setShowDeviationAlert] = useState(false);
+  const [gpsConnected, setGpsConnected] = useState(false);
 
   const driverId = session.user?.id || 'cf6912d9-6617-482b-aacf-dd034c780185';
   const agencyId = session.user?.agency_id || '6e7cdb44-603c-46c4-a4ca-198334c34314';
@@ -106,11 +109,7 @@ export default function LiveMapScreen() {
 
     try {
       setIsRerouting(true);
-      console.log('Starting automatic rerouting...');
-
-      // Find next destination (either next passenger or final dropoff)
-      let nextDestination = { lat: trip.dropoff_lat, lng: trip.dropoff_lng };
-      let waypoints: { lat: number; lng: number }[] = [];
+      showCustomAlert('Rerouting', 'Calculating new route through remaining stops...');
 
       // Find remaining passengers not yet picked up/dropped
       const remainingPassengers = passengers.filter(p => {
@@ -120,27 +119,32 @@ export default function LiveMapScreen() {
         return !p.pickup && p.ispresent !== false;
       });
 
-      if (remainingPassengers.length > 0) {
-        // Use first remaining passenger as next waypoint
-        const nextPassenger = remainingPassengers[0];
-        waypoints = remainingPassengers
+      // Build stops: current location -> remaining pickups -> destination
+      const stops: LatLng[] = [
+        [currentLat, currentLng],
+        ...remainingPassengers
           .filter(p => p.lat && p.lng)
-          .map(p => ({ lat: p.lat, lng: p.lng }));
-        nextDestination = { lat: trip.dropoff_lat, lng: trip.dropoff_lng };
+          .map(p => [p.lat, p.lng] as LatLng),
+        [trip.dropoff_lat, trip.dropoff_lng] as LatLng,
+      ];
+
+      // Calculate new route using OSRM
+      const calculated = await calculateItineraryRoutes(stops);
+
+      if (calculated.primary.length < 2) {
+        throw new Error('Routing service returned an empty route');
       }
 
-      // Fetch new route from Google Maps
-      const rerouteResult = await fetchGoogleMapsRoute(
-        { lat: currentLat, lng: currentLng },
-        nextDestination,
-        GOOGLE_MAPS_API_KEY,
-        waypoints.length > 0 ? waypoints : undefined
-      );
+      // Convert LatLng to RoutePoint format
+      const newRouteCoordinates: RoutePoint[] = calculated.primary.map(([lat, lng]) => ({
+        latitude: lat,
+        longitude: lng,
+      }));
 
       // Update route with new path
-      setOriginalRouteCoordinates([...routeCoordinates]); // Save original
-      setRouteCoordinates(rerouteResult.newRoute);
-      
+      setOriginalRouteCoordinates([...routeCoordinates]);
+      setRouteCoordinates(newRouteCoordinates);
+
       // Mark reroute as complete
       deviationDetectorRef.current.markReroute();
 
@@ -154,18 +158,15 @@ export default function LiveMapScreen() {
           currentLng,
           deviationDistance: deviationDistance,
           originalRoute: originalRouteCoordinates,
-          newRoute: rerouteResult.newRoute,
+          newRoute: newRouteCoordinates,
         }
       );
 
       showCustomAlert(
         'Route Updated',
-        `New route calculated. ${rerouteResult.estimatedDistance ? `Distance: ${(rerouteResult.estimatedDistance / 1000).toFixed(1)}km` : ''}`
+        `New route calculated with ${newRouteCoordinates.length} points. ${calculated.alternatives.length} alternative(s) available.`
       );
-
-      console.log('Automatic rerouting completed successfully');
     } catch (error) {
-      console.error('Automatic rerouting failed:', error);
       showCustomAlert(
         'Rerouting Failed',
         'Could not calculate new route. Using original route.'
@@ -204,6 +205,7 @@ export default function LiveMapScreen() {
 
     const currentLoc = await Location.getCurrentPositionAsync({});
     setDriverLocation(currentLoc);
+    setGpsConnected(true);
 
     locationSubscription.current = await Location.watchPositionAsync(
   {
@@ -268,19 +270,31 @@ export default function LiveMapScreen() {
     );
   };
 
-  const fetchRoute = async (startLat: number, startLng: number, endLat: number, endLng: number, passList: any[] = []) => {
+  const fetchRoute = async (startLat: number, startLng: number, endLat: number, endLng: number, passList: any[]) => {
     try {
-      const coords = [`${startLng},${startLat}`];
+      // Build stops: start -> all pickups -> end
+      const stops: LatLng[] = [
+        [startLat, startLng],
+        ...passList.filter(p => p.lat && p.lng).map(p => [p.lat, p.lng] as LatLng),
+        [endLat, endLng],
+      ];
 
-      // Add all passengers as waypoints so the route actually goes to them
-      passList.forEach(p => {
-        if (p.lat && p.lng) {
-          coords.push(`${p.lng},${p.lat}`);
-        }
-      });
+      // Calculate route using OSRM with alternatives
+      const calculated = await calculateItineraryRoutes(stops);
 
-      coords.push(`${endLng},${endLat}`);
-      const coordString = coords.join(';');
+      // Convert LatLng to RoutePoint format
+      const coordinates: RoutePoint[] = calculated.primary.map(([lat, lng]) => ({
+        latitude: lat,
+        longitude: lng,
+      }));
+
+      console.log('Route loaded:', coordinates.length, 'points');
+      setRouteCoordinates(coordinates);
+
+      // Save as original route if not already set
+      if (originalRouteCoordinates.length === 0) {
+        setOriginalRouteCoordinates(coordinates);
+      }
 
       // Save waypoints for dynamic recalculation
       const waypoints = [
@@ -289,33 +303,8 @@ export default function LiveMapScreen() {
         { lat: endLat, lng: endLng }
       ];
       setRouteWaypoints(waypoints);
-
-      const response = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson`
-      );
-      const data = await response.json();
-
-      if (data.routes && data.routes.length > 0) {
-        const coordinates = data.routes[0].geometry.coordinates.map((coord: any) => ({
-          latitude: coord[1],
-          longitude: coord[0],
-        }));
-        setRouteCoordinates(coordinates);
-        // Save as original route if not already set
-        if (originalRouteCoordinates.length === 0) {
-          setOriginalRouteCoordinates(coordinates);
-        }
-      } else {
-        const fallbackRoute = [
-          { latitude: startLat, longitude: startLng },
-          { latitude: endLat, longitude: endLng },
-        ];
-        setRouteCoordinates(fallbackRoute);
-        if (originalRouteCoordinates.length === 0) {
-          setOriginalRouteCoordinates(fallbackRoute);
-        }
-      }
     } catch (error) {
+      console.error('Route calculation failed:', error);
       const fallbackRoute = [
         { latitude: startLat, longitude: startLng },
         { latitude: endLat, longitude: endLng },
@@ -852,7 +841,15 @@ export default function LiveMapScreen() {
         </TouchableOpacity>
         <View style={styles.headerTextContainer}>
           <Text style={styles.headerTitle}>Live Route</Text>
-          <Text style={styles.headerSubtitle}>{leg === 'return' ? 'Return Leg' : 'Outbound Leg'}</Text>
+          <View style={styles.headerSubtitleRow}>
+            <Text style={styles.headerSubtitle}>{leg === 'return' ? 'Return Leg' : 'Outbound Leg'}</Text>
+            {gpsConnected && (
+              <View style={styles.gpsIndicator}>
+                <FontAwesome5 name="satellite-dish" size={10} color="#10b981" />
+                <Text style={styles.gpsText}>GPS connected</Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Commented out simulate button per user request */}
@@ -1178,6 +1175,25 @@ const styles = StyleSheet.create({
   },
   headerTextContainer: {
     flex: 1,
+  },
+  headerSubtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  gpsIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  gpsText: {
+    color: '#10b981',
+    fontSize: 10,
+    fontWeight: '600',
   },
   simulateButton: {
     flexDirection: 'row',
