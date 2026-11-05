@@ -311,7 +311,8 @@ export default function LiveMapScreen() {
         setRoutes(computedRoutes);
         setActiveRouteIndex(0);
         setOriginalRouteCoordinates([...routeCoordinates]);
-        setRouteCoordinates(newRoute);
+        setRouteCoordinates([...newRoute]);
+        setIsDeviating(false);
 
         deviationDetectorRef.current.markReroute();
 
@@ -330,6 +331,24 @@ export default function LiveMapScreen() {
     } finally {
       setIsRerouting(false);
     }
+  };
+
+  // Switch active route to blue line
+  const handleSelectRoute = (index: number) => {
+    if (!routes || !routes[index]) return;
+    const selected = routes[index];
+    setActiveRouteIndex(index);
+    setRouteCoordinates([...selected.coordinates]);
+    setIsDeviating(false);
+    if (selected.steps && selected.steps.length > 0) {
+      setCurrentStep(selected.steps[0]);
+      setNextStep(selected.steps[1] || null);
+    }
+    Haptics.selectionAsync().catch(() => {});
+    showCustomAlert(
+      'Active Route Changed',
+      `Switched to: ${selected.summary} (${selected.durationText})`
+    );
   };
 
   // Start continuous location tracking
@@ -843,23 +862,33 @@ export default function LiveMapScreen() {
           if (autoCenter) setAutoCenter(false);
         }}
       >
-        {/* Alternative Routes Polylines (clickable) */}
+        {/* Alternative Routes Polylines (clickable directly on map) */}
         {routes.map((rt, idx) => {
           if (idx === activeRouteIndex) return null;
           return (
-            <Polyline
-              key={rt.id}
-              coordinates={rt.coordinates}
-              strokeColor="#94a3b8"
-              strokeWidth={5}
-              lineDashPattern={[2, 3]}
-              tappable={true}
-              onPress={() => {
-                setActiveRouteIndex(idx);
-                setRouteCoordinates(rt.coordinates);
-                Haptics.selectionAsync();
-              }}
-            />
+            <React.Fragment key={`alt-frag-${idx}-${rt.id}`}>
+              {/* Invisible wide touch hitbox (30px) so finger taps easily on mobile */}
+              <Polyline
+                key={`alt-hitbox-${idx}-${rt.id}-${activeRouteIndex}`}
+                coordinates={rt.coordinates}
+                strokeColor="rgba(0,0,0,0.001)"
+                strokeWidth={30}
+                tappable={true}
+                zIndex={20}
+                onPress={() => handleSelectRoute(idx)}
+              />
+              {/* Visible dashed alternative route */}
+              <Polyline
+                key={`alt-line-${idx}-${rt.id}-${activeRouteIndex}`}
+                coordinates={rt.coordinates}
+                strokeColor="#94a3b8"
+                strokeWidth={5}
+                lineDashPattern={[4, 4]}
+                tappable={true}
+                zIndex={10}
+                onPress={() => handleSelectRoute(idx)}
+              />
+            </React.Fragment>
           );
         })}
 
@@ -867,15 +896,18 @@ export default function LiveMapScreen() {
         {originalRouteCoordinates.length > 0 &&
           originalRouteCoordinates.length !== routeCoordinates.length && (
             <Polyline
+              key={`orig-route-${originalRouteCoordinates.length}`}
               coordinates={originalRouteCoordinates}
               strokeColor="#64748b"
               strokeWidth={3}
               lineDashPattern={[6, 6]}
+              zIndex={5}
             />
           )}
 
-        {/* Active Route Polyline */}
+        {/* Active Route Polyline (VIBRANT BLUE #2563eb, high zIndex so it sits on top) */}
         <Polyline
+          key={`active-route-line-${activeRouteIndex}-${routeCoordinates.length}-${isDeviating ? 'dev' : 'blue'}-${activeRoute?.id || 'main'}`}
           coordinates={
             routeCoordinates.length > 0
               ? routeCoordinates
@@ -884,9 +916,9 @@ export default function LiveMapScreen() {
                   { latitude: trip.dropoff_lat, longitude: trip.dropoff_lng },
                 ]
           }
-          strokeColor={isDeviating ? '#f59e0b' : '#3b82f6'}
+          strokeColor={isDeviating ? '#f59e0b' : '#2563eb'}
           strokeWidth={6}
-          zIndex={10}
+          zIndex={50}
         />
 
         {/* Live Driver / Vehicle Marker with Direction Heading */}
@@ -1113,6 +1145,41 @@ export default function LiveMapScreen() {
             </TouchableOpacity>
           )}
 
+          {/* Alternative Route Quick Switcher Pills (Top HUD) */}
+          {routes.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.topRoutePillsRow}
+            >
+              {routes.map((rt, idx) => {
+                const isSelected = idx === activeRouteIndex;
+                return (
+                  <TouchableOpacity
+                    key={`top-route-${rt.id}`}
+                    style={[styles.topRoutePill, isSelected && styles.topRoutePillSelected]}
+                    onPress={() => handleSelectRoute(idx)}
+                  >
+                    <FontAwesome5
+                      name={isSelected ? 'check-circle' : 'route'}
+                      size={11}
+                      color={isSelected ? '#ffffff' : '#94a3b8'}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text
+                      style={[
+                        styles.topRoutePillText,
+                        isSelected && styles.topRoutePillTextSelected,
+                      ]}
+                    >
+                      {rt.summary} ({rt.durationText})
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+
           {/* Quick Nearby Category Filter Pills */}
           <ScrollView
             horizontal
@@ -1305,11 +1372,7 @@ export default function LiveMapScreen() {
                   <TouchableOpacity
                     key={rt.id}
                     style={[styles.routeChip, isSelected && styles.routeChipSelected]}
-                    onPress={() => {
-                      setActiveRouteIndex(idx);
-                      setRouteCoordinates(rt.coordinates);
-                      Haptics.selectionAsync();
-                    }}
+                    onPress={() => handleSelectRoute(idx)}
                   >
                     <Text
                       style={[
@@ -1317,7 +1380,7 @@ export default function LiveMapScreen() {
                         isSelected && styles.routeChipTitleSelected,
                       ]}
                     >
-                      {idx === 0 ? 'Fastest' : `Alt ${idx}`}
+                      {isSelected ? '✓ ' : ''}{idx === 0 ? 'Fastest' : `Alt ${idx}`}
                     </Text>
                     <Text
                       style={[
@@ -2024,6 +2087,35 @@ const styles = StyleSheet.create({
   stepsBadgeText: {
     color: '#ffffff',
     fontSize: 10,
+    fontWeight: '700',
+  },
+
+  // Top Route Pills Switcher
+  topRoutePillsRow: {
+    paddingVertical: 6,
+    gap: 8,
+  },
+  topRoutePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  topRoutePillSelected: {
+    backgroundColor: '#2563eb',
+    borderColor: '#60a5fa',
+  },
+  topRoutePillText: {
+    color: '#cbd5e1',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  topRoutePillTextSelected: {
+    color: '#ffffff',
     fontWeight: '700',
   },
 
