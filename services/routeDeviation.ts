@@ -36,9 +36,9 @@ export interface OsrmRoute {
   duration: number;
 }
 
-const DEVIATION_THRESHOLD_METERS = 100; // 100 meters
-const CONSECUTIVE_DEVIATIONS_REQUIRED = 3; // Require 3 consecutive readings to confirm deviation
-const REROUTE_COOLDOWN_MS = 60000; // Don't reroute more than once per minute
+const DEVIATION_THRESHOLD_METERS = 50; // 50 meters - more sensitive for faster rerouting
+const CONSECUTIVE_DEVIATIONS_REQUIRED = 2; // Require 2 consecutive readings to confirm deviation
+const REROUTE_COOLDOWN_MS = 30000; // Don't reroute more than once per 30 seconds
 
 const OSRM_SERVERS = [
   'https://router.project-osrm.org',
@@ -308,8 +308,8 @@ export class RouteDeviationDetector {
     route: RoutePoint[],
     gpsAccuracy?: number
   ): DeviationStatus {
-    // If GPS accuracy is poor (> 50m), skip this check
-    if (gpsAccuracy && gpsAccuracy > 50) {
+    // If GPS accuracy is poor (> 100m), skip this check (relaxed from 50m)
+    if (gpsAccuracy && gpsAccuracy > 100) {
       this.consecutiveDeviations = 0;
       return {
         isDeviating: false,

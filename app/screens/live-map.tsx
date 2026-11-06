@@ -390,17 +390,44 @@ export default function LiveMapScreen() {
       },
       (loc) => {
         // Calculate vehicle bearing / heading
-        if (lastLocationRef.current) {
+        if (lastLocationRef.current && routeCoordinates.length > 0) {
+          // Calculate bearing from last location to current
           const bearing = calculateBearing(
             lastLocationRef.current.lat,
             lastLocationRef.current.lng,
             loc.coords.latitude,
             loc.coords.longitude
           );
-          if (loc.coords.speed && loc.coords.speed > 1) {
+          
+          // Find nearest point on route to get route direction
+          let routeBearing = bearing;
+          let minDist = Infinity;
+          for (let i = 0; i < routeCoordinates.length - 1; i++) {
+            const dist = calculateDistance(
+              loc.coords.latitude,
+              loc.coords.longitude,
+              routeCoordinates[i].latitude,
+              routeCoordinates[i].longitude
+            );
+            if (dist < minDist) {
+              minDist = dist;
+              routeBearing = calculateBearing(
+                routeCoordinates[i].latitude,
+                routeCoordinates[i].longitude,
+                routeCoordinates[i + 1].latitude,
+                routeCoordinates[i + 1].longitude
+              );
+            }
+          }
+          
+          // Use GPS heading when moving fast enough, otherwise blend with route direction
+          if (loc.coords.speed && loc.coords.speed > 2) {
             setVehicleHeading(bearing);
           } else if (loc.coords.heading != null && loc.coords.heading >= 0) {
-            setVehicleHeading(loc.coords.heading);
+            // When stationary or slow, prioritize route direction for arrow alignment
+            setVehicleHeading(routeBearing);
+          } else {
+            setVehicleHeading(routeBearing);
           }
         }
         lastLocationRef.current = {
