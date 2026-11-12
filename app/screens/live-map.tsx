@@ -86,6 +86,10 @@ export default function LiveMapScreen() {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [autoCenter, setAutoCenter] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(0.04);
+  const [isFloatingControlsExpanded, setIsFloatingControlsExpanded] = useState(true);
+  const [isNearbyPillsExpanded, setIsNearbyPillsExpanded] = useState(true);
+  const [isRoutePillsExpanded, setIsRoutePillsExpanded] = useState(true);
+  const [isBottomSheetExpanded, setIsBottomSheetExpanded] = useState(true);
 
   // Navigation & Directions State
   const [routes, setRoutes] = useState<NavigationRoute[]>([]);
@@ -96,6 +100,7 @@ export default function LiveMapScreen() {
   const [nextStep, setNextStep] = useState<NavigationStep | null>(null);
   const [showStepsModal, setShowStepsModal] = useState(false);
   const [isVoiceMuted, setIsVoiceMuted] = useState(false);
+  const [isInstructionExpanded, setIsInstructionExpanded] = useState(false);
   const lastSpokenStepIdRef = useRef<string | null>(null);
 
   // Route Options (Avoid Tolls, Highways, Ferries)
@@ -1142,7 +1147,7 @@ export default function LiveMapScreen() {
             <TouchableOpacity
               style={styles.turnInstructionCard}
               activeOpacity={0.9}
-              onPress={() => setShowStepsModal(true)}
+              onPress={() => setIsInstructionExpanded(!isInstructionExpanded)}
             >
               <View style={styles.turnManeuverBadge}>
                 <FontAwesome5
@@ -1154,179 +1159,257 @@ export default function LiveMapScreen() {
 
               <View style={styles.turnTextContainer}>
                 <Text style={styles.turnDistanceText}>{currentStep.distanceText}</Text>
-                <Text style={styles.turnInstructionText} numberOfLines={2}>
+                <Text style={styles.turnInstructionText} numberOfLines={isInstructionExpanded ? undefined : 2}>
                   {currentStep.cleanInstruction}
                 </Text>
-                {nextStep && (
+                {nextStep && !isInstructionExpanded && (
                   <Text style={styles.turnNextPreviewText} numberOfLines={1}>
                     Then {nextStep.cleanInstruction}
                   </Text>
                 )}
+                {isInstructionExpanded && activeRoute && activeRoute.steps && (
+                  <View style={styles.expandedStepsContainer}>
+                    {activeRoute.steps.slice(1, 4).map((step, idx) => (
+                      <View key={step.id} style={styles.expandedStepItem}>
+                        <FontAwesome5
+                          name={getManeuverIcon(step.maneuver)}
+                          size={12}
+                          color="#ccfbf1"
+                          style={{ marginRight: 8 }}
+                        />
+                        <Text style={styles.expandedStepText}>
+                          {step.distanceText} • {step.cleanInstruction}
+                        </Text>
+                      </View>
+                    ))}
+                    {activeRoute.steps.length > 4 && (
+                      <TouchableOpacity
+                        style={styles.viewAllStepsBtn}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          setShowStepsModal(true);
+                        }}
+                      >
+                        <Text style={styles.viewAllStepsText}>
+                          View all {activeRoute.steps.length} steps
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
               </View>
 
               <View style={styles.turnActionCol}>
-                <View style={styles.stepsBadge}>
-                  <Text style={styles.stepsBadgeText}>Steps</Text>
-                </View>
+                <FontAwesome5
+                  name={isInstructionExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color="#ffffff"
+                />
               </View>
             </TouchableOpacity>
           )}
 
           {/* Alternative Route Quick Switcher Pills (Top HUD) */}
           {routes.length > 1 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.topRoutePillsRow}
-            >
-              {routes.map((rt, idx) => {
-                const isSelected = idx === activeRouteIndex;
-                return (
-                  <TouchableOpacity
-                    key={`top-route-${rt.id}`}
-                    style={[styles.topRoutePill, isSelected && styles.topRoutePillSelected]}
-                    onPress={() => handleSelectRoute(idx)}
-                  >
-                    <FontAwesome5
-                      name={isSelected ? 'check-circle' : 'route'}
-                      size={11}
-                      color={isSelected ? '#ffffff' : '#94a3b8'}
-                      style={{ marginRight: 6 }}
-                    />
-                    <Text
-                      style={[
-                        styles.topRoutePillText,
-                        isSelected && styles.topRoutePillTextSelected,
-                      ]}
-                    >
-                      {rt.summary} ({rt.durationText})
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <View>
+              <TouchableOpacity
+                style={styles.pillToggleBtn}
+                onPress={() => setIsRoutePillsExpanded(!isRoutePillsExpanded)}
+              >
+                <FontAwesome5
+                  name={isRoutePillsExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={12}
+                  color="#94a3b8"
+                />
+                <Text style={styles.pillToggleText}>Routes ({routes.length})</Text>
+              </TouchableOpacity>
+              {isRoutePillsExpanded && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.topRoutePillsRow}
+                >
+                  {routes.map((rt, idx) => {
+                    const isSelected = idx === activeRouteIndex;
+                    return (
+                      <TouchableOpacity
+                        key={`top-route-${rt.id}`}
+                        style={[styles.topRoutePill, isSelected && styles.topRoutePillSelected]}
+                        onPress={() => handleSelectRoute(idx)}
+                      >
+                        <FontAwesome5
+                          name={isSelected ? 'check-circle' : 'route'}
+                          size={11}
+                          color={isSelected ? '#ffffff' : '#94a3b8'}
+                          style={{ marginRight: 6 }}
+                        />
+                        <Text
+                          style={[
+                            styles.topRoutePillText,
+                            isSelected && styles.topRoutePillTextSelected,
+                          ]}
+                        >
+                          {rt.summary} ({rt.durationText})
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
+            </View>
           )}
 
           {/* Quick Nearby Category Filter Pills */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.nearbyPillsRow}
-          >
-            {[
-              { id: 'gas_station', label: 'Petrol', icon: 'gas-pump' },
-              { id: 'hospital', label: 'Hospital', icon: 'hospital' },
-              { id: 'restaurant', label: 'Food', icon: 'utensils' },
-              { id: 'parking', label: 'Parking', icon: 'parking' },
-              { id: 'car_repair', label: 'Mechanic', icon: 'wrench' },
-            ].map((cat) => {
-              const active = activeNearbyCategory === cat.id;
-              return (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[styles.nearbyFilterPill, active && styles.nearbyFilterPillActive]}
-                  onPress={() => handleSelectNearbyCategory(cat.id as NearbyCategory)}
-                >
-                  <FontAwesome5
-                    name={cat.icon}
-                    size={11}
-                    color={active ? '#ffffff' : '#94a3b8'}
-                    style={{ marginRight: 6 }}
-                  />
-                  <Text
-                    style={[
-                      styles.nearbyFilterPillText,
-                      active && styles.nearbyFilterPillTextActive,
-                    ]}
-                  >
-                    {cat.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          <View>
+            <TouchableOpacity
+              style={styles.pillToggleBtn}
+              onPress={() => setIsNearbyPillsExpanded(!isNearbyPillsExpanded)}
+            >
+              <FontAwesome5
+                name={isNearbyPillsExpanded ? 'chevron-up' : 'chevron-down'}
+                size={12}
+                color="#94a3b8"
+              />
+              <Text style={styles.pillToggleText}>Nearby</Text>
+            </TouchableOpacity>
+            {isNearbyPillsExpanded && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.nearbyPillsRow}
+              >
+                {[
+                  { id: 'gas_station', label: 'Petrol', icon: 'gas-pump' },
+                  { id: 'hospital', label: 'Hospital', icon: 'hospital' },
+                  { id: 'restaurant', label: 'Food', icon: 'utensils' },
+                  { id: 'parking', label: 'Parking', icon: 'parking' },
+                  { id: 'car_repair', label: 'Mechanic', icon: 'wrench' },
+                ].map((cat) => {
+                  const active = activeNearbyCategory === cat.id;
+                  return (
+                    <TouchableOpacity
+                      key={cat.id}
+                      style={[styles.nearbyFilterPill, active && styles.nearbyFilterPillActive]}
+                      onPress={() => handleSelectNearbyCategory(cat.id as NearbyCategory)}
+                    >
+                      <FontAwesome5
+                        name={cat.icon}
+                        size={11}
+                        color={active ? '#ffffff' : '#94a3b8'}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text
+                        style={[
+                          styles.nearbyFilterPillText,
+                          active && styles.nearbyFilterPillTextActive,
+                        ]}
+                      >
+                        {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
         </View>
       )}
 
       {/* FLOATING MAP CONTROLS (Right Side Column) */}
       <View style={[styles.floatingControlsColumn, isFullScreen && { top: 60 }]}>
-        {/* Full-screen Toggle */}
+        {/* Toggle Expand/Collapse */}
         <TouchableOpacity
           style={styles.floatToolBtn}
-          onPress={() => {
-            setIsFullScreen(!isFullScreen);
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}
+          onPress={() => setIsFloatingControlsExpanded(!isFloatingControlsExpanded)}
         >
           <FontAwesome5
-            name={isFullScreen ? 'compress-arrows-alt' : 'expand-arrows-alt'}
+            name={isFloatingControlsExpanded ? 'chevron-up' : 'chevron-down'}
             size={16}
             color="#ffffff"
           />
         </TouchableOpacity>
 
-        {/* Map Type Layers */}
-        <TouchableOpacity
-          style={styles.floatToolBtn}
-          onPress={() => setShowMapTypeModal(true)}
-        >
-          <FontAwesome5 name="layer-group" size={16} color="#ffffff" />
-        </TouchableOpacity>
+        {isFloatingControlsExpanded && (
+          <>
+            {/* Full-screen Toggle */}
+            <TouchableOpacity
+              style={styles.floatToolBtn}
+              onPress={() => {
+                setIsFullScreen(!isFullScreen);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }}
+            >
+              <FontAwesome5
+                name={isFullScreen ? 'compress-arrows-alt' : 'expand-arrows-alt'}
+                size={16}
+                color="#ffffff"
+              />
+            </TouchableOpacity>
 
-        {/* Traffic Layer Toggle */}
-        <TouchableOpacity
-          style={[styles.floatToolBtn, showsTraffic && styles.floatToolBtnActive]}
-          onPress={() => {
-            setShowsTraffic(!showsTraffic);
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}
-        >
-          <FontAwesome5
-            name="traffic-light"
-            size={16}
-            color={showsTraffic ? '#10b981' : '#ffffff'}
-          />
-        </TouchableOpacity>
+            {/* Map Type Layers */}
+            <TouchableOpacity
+              style={styles.floatToolBtn}
+              onPress={() => setShowMapTypeModal(true)}
+            >
+              <FontAwesome5 name="layer-group" size={16} color="#ffffff" />
+            </TouchableOpacity>
 
-        {/* Route Options (Avoid Tolls, Highways) */}
-        <TouchableOpacity
-          style={styles.floatToolBtn}
-          onPress={() => setShowPreferencesModal(true)}
-        >
-          <FontAwesome5 name="sliders-h" size={15} color="#ffffff" />
-        </TouchableOpacity>
+            {/* Traffic Layer Toggle */}
+            <TouchableOpacity
+              style={styles.floatToolBtn}
+              onPress={() => {
+                setShowsTraffic(!showsTraffic);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }}
+            >
+              <FontAwesome5
+                name="traffic-light"
+                size={16}
+                color="#ffffff"
+              />
+            </TouchableOpacity>
 
-        {/* Compass / Reset North */}
-        <TouchableOpacity style={styles.floatToolBtn} onPress={resetNorth}>
-          <FontAwesome5 name="compass" size={16} color="#38bdf8" />
-        </TouchableOpacity>
+            {/* Route Options (Avoid Tolls, Highways) */}
+            <TouchableOpacity
+              style={styles.floatToolBtn}
+              onPress={() => setShowPreferencesModal(true)}
+            >
+              <FontAwesome5 name="sliders-h" size={15} color="#ffffff" />
+            </TouchableOpacity>
 
-        {/* Zoom In (+) */}
-        <TouchableOpacity style={styles.floatToolBtn} onPress={zoomIn}>
-          <FontAwesome5 name="plus" size={16} color="#ffffff" />
-        </TouchableOpacity>
+            {/* Compass / Reset North */}
+            <TouchableOpacity style={styles.floatToolBtn} onPress={resetNorth}>
+              <FontAwesome5 name="compass" size={16} color="#38bdf8" />
+            </TouchableOpacity>
 
-        {/* Zoom Out (-) */}
-        <TouchableOpacity style={styles.floatToolBtn} onPress={zoomOut}>
-          <FontAwesome5 name="minus" size={16} color="#ffffff" />
-        </TouchableOpacity>
+            {/* Zoom In (+) */}
+            <TouchableOpacity style={styles.floatToolBtn} onPress={zoomIn}>
+              <FontAwesome5 name="plus" size={16} color="#ffffff" />
+            </TouchableOpacity>
 
-        {/* Auto-Center / Re-center Vehicle */}
-        <TouchableOpacity
-          style={[styles.floatToolBtn, autoCenter && styles.floatToolBtnAutoCenter]}
-          onPress={centerOnDriver}
-        >
-          <FontAwesome5
-            name="location-arrow"
-            size={16}
-            color={autoCenter ? '#ffffff' : '#38bdf8'}
-          />
-        </TouchableOpacity>
+            {/* Zoom Out (-) */}
+            <TouchableOpacity style={styles.floatToolBtn} onPress={zoomOut}>
+              <FontAwesome5 name="minus" size={16} color="#ffffff" />
+            </TouchableOpacity>
 
-        {/* Fit All Points */}
-        <TouchableOpacity style={styles.floatToolBtn} onPress={centerOnAll}>
-          <FontAwesome5 name="crosshairs" size={16} color="#ffffff" />
-        </TouchableOpacity>
+            {/* Auto-Center / Re-center Vehicle */}
+            <TouchableOpacity
+              style={[styles.floatToolBtn, autoCenter && styles.floatToolBtnAutoCenter]}
+              onPress={centerOnDriver}
+            >
+              <FontAwesome5
+                name="location-arrow"
+                size={16}
+                color={autoCenter ? '#ffffff' : '#38bdf8'}
+              />
+            </TouchableOpacity>
+
+            {/* Fit All Points */}
+            <TouchableOpacity style={styles.floatToolBtn} onPress={centerOnAll}>
+              <FontAwesome5 name="crosshairs" size={16} color="#ffffff" />
+            </TouchableOpacity>
+          </>
+        )}
       </View>
 
       {/* SELECTED NEARBY PLACE PREVIEW POPUP */}
@@ -1386,52 +1469,66 @@ export default function LiveMapScreen() {
       {/* BOTTOM SHEET & PASSENGER CAROUSEL (TMS FUNCTIONALITY PRESERVED) */}
       {!isFullScreen && (
         <View style={styles.bottomSheet}>
-          {/* Route Selector Chips (Fastest vs Alternatives) */}
-          {routes.length > 1 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.routeSelectorRow}
-            >
-              {routes.map((rt, idx) => {
-                const isSelected = idx === activeRouteIndex;
-                return (
-                  <TouchableOpacity
-                    key={rt.id}
-                    style={[styles.routeChip, isSelected && styles.routeChipSelected]}
-                    onPress={() => handleSelectRoute(idx)}
-                  >
-                    <Text
-                      style={[
-                        styles.routeChipTitle,
-                        isSelected && styles.routeChipTitleSelected,
-                      ]}
-                    >
-                      {isSelected ? '✓ ' : ''}{idx === 0 ? 'Fastest' : `Alt ${idx}`}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.routeChipSubtitle,
-                        isSelected && styles.routeChipSubtitleSelected,
-                      ]}
-                    >
-                      {rt.durationText} • {rt.distanceText}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          )}
-
-          {/* Passenger Cards Carousel */}
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.carouselContainer}
-            snapToInterval={CARD_WIDTH + CARD_MARGIN * 2}
-            decelerationRate="fast"
+          {/* Bottom Sheet Toggle */}
+          <TouchableOpacity
+            style={styles.bottomSheetToggle}
+            onPress={() => setIsBottomSheetExpanded(!isBottomSheetExpanded)}
           >
+            <FontAwesome5
+              name={isBottomSheetExpanded ? 'chevron-down' : 'chevron-up'}
+              size={14}
+              color="#94a3b8"
+            />
+          </TouchableOpacity>
+
+          {isBottomSheetExpanded && (
+            <>
+              {/* Route Selector Chips (Fastest vs Alternatives) */}
+              {routes.length > 1 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.routeSelectorRow}
+                >
+                  {routes.map((rt, idx) => {
+                    const isSelected = idx === activeRouteIndex;
+                    return (
+                      <TouchableOpacity
+                        key={rt.id}
+                        style={[styles.routeChip, isSelected && styles.routeChipSelected]}
+                        onPress={() => handleSelectRoute(idx)}
+                      >
+                        <Text
+                          style={[
+                            styles.routeChipTitle,
+                            isSelected && styles.routeChipTitleSelected,
+                          ]}
+                        >
+                          {isSelected ? '✓ ' : ''}{idx === 0 ? 'Fastest' : `Alt ${idx}`}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.routeChipSubtitle,
+                            isSelected && styles.routeChipSubtitleSelected,
+                          ]}
+                        >
+                          {rt.durationText} • {rt.distanceText}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
+
+              {/* Passenger Cards Carousel */}
+              <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.carouselContainer}
+                snapToInterval={CARD_WIDTH + CARD_MARGIN * 2}
+                decelerationRate="fast"
+              >
             {/* Passenger Stops */}
             {passengers.map((passenger, index) => (
               <View key={passenger.id || index} style={styles.cardWrapper}>
@@ -1720,6 +1817,8 @@ export default function LiveMapScreen() {
               </TouchableOpacity>
             </View>
           </ScrollView>
+            </>
+          )}
         </View>
       )}
 
@@ -2116,6 +2215,33 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
+  expandedStepsContainer: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  expandedStepItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  expandedStepText: {
+    color: '#f8fafc',
+    fontSize: 12,
+    fontWeight: '500',
+    flex: 1,
+  },
+  viewAllStepsBtn: {
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  viewAllStepsText: {
+    color: '#ccfbf1',
+    fontSize: 11,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
 
   // Top Route Pills Switcher
   topRoutePillsRow: {
@@ -2173,6 +2299,18 @@ const styles = StyleSheet.create({
   nearbyFilterPillTextActive: {
     color: '#ffffff',
     fontWeight: '700',
+  },
+  pillToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    gap: 6,
+  },
+  pillToggleText: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '600',
   },
 
   // FLOATING CONTROLS COLUMN (Right Side)
@@ -2373,6 +2511,10 @@ const styles = StyleSheet.create({
     right: 0,
     paddingBottom: Platform.OS === 'ios' ? 30 : 16,
     zIndex: 80,
+  },
+  bottomSheetToggle: {
+    alignItems: 'center',
+    paddingVertical: 8,
   },
   routeSelectorRow: {
     paddingHorizontal: 16,
